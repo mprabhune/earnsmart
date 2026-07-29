@@ -1,0 +1,15 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+earnsmart-server
+server
+
+# Environment & IDE
+.DS_Store
+.idea/
+.vscode/
+.env
+!.env.example
