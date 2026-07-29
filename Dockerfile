@@ -10,7 +10,7 @@ COPY . .
 
 # Download dependencies and build static binary
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o earnsmart-server ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o earnsmart-server ./cmd/server
 
 # Stage 2: Minimal runtime image
 FROM alpine:latest
