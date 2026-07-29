@@ -3,14 +3,11 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency definitions
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
+# Copy all source files
 COPY . .
 
-# Build lightweight static binary
+# Download dependencies and build static binary
+RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o earnsmart-server ./cmd/server/main.go
 
 # Stage 2: Minimal runtime image
