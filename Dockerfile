@@ -1,5 +1,5 @@
 # Stage 1: Build binary
-FROM golang:alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build lightweight static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o earnsmart-server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o earnsmart-server ./cmd/server/main.go
 
 # Stage 2: Minimal runtime image
 FROM alpine:latest
