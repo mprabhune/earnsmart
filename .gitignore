@@ -4,8 +4,8 @@
 *.dll
 *.so
 *.dylib
-earnsmart-server
-server
+/earnsmart-server
+/server
 
 # Environment & IDE
 .DS_Store
