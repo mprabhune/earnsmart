@@ -1,0 +1,97 @@
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"earnsmart/internal/config"
+	"earnsmart/internal/database"
+	"earnsmart/internal/handlers"
+	"earnsmart/internal/middleware"
+
+	"github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+)
+
+func main() {
+	cfg := config.LoadConfig()
+
+	db, err := database.InitDB(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	r := chi.NewRouter()
+
+	// Logger & Recoverer middleware
+	r.Use(chiMiddleware.Logger)
+	r.Use(chiMiddleware.Recoverer)
+
+	// CORS configuration for web and mobile clients
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
+	// Health Check
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","service":"earnsmart-backend"}`))
+	})
+
+	// Handlers
+	authHandler := handlers.NewAuthHandler(db, cfg)
+	parentHandler := handlers.NewParentHandler(db)
+	kidHandler := handlers.NewKidHandler(db)
+
+	// Public Auth API Routes
+	r.Route("/api/v1/auth", func(r chi.Router) {
+		r.Post("/parent/register", authHandler.RegisterParent)
+		r.Post("/parent/login", authHandler.ParentLogin)
+		r.Post("/kid/login", authHandler.KidLogin)
+	})
+
+	// Protected Routes (JWT required)
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+
+		// Parent Endpoints
+		r.Route("/parent", func(r chi.Router) {
+			r.Use(middleware.RequireRole("parent"))
+
+			r.Get("/tasks", parentHandler.GetTasks)
+			r.Post("/tasks", parentHandler.CreateTask)
+			r.Put("/tasks/{id}", parentHandler.UpdateTask)
+			r.Delete("/tasks/{id}", parentHandler.DeleteTask)
+
+			r.Get("/approvals", parentHandler.GetApprovals)
+			r.Post("/approvals/{id}/review", parentHandler.ReviewTask)
+
+			r.Get("/summary", parentHandler.GetSummary)
+			r.Get("/kids", parentHandler.GetKids)
+			r.Post("/kids", parentHandler.CreateKid)
+			r.Post("/payout", parentHandler.ProcessPayout)
+		})
+
+		// Kid Endpoints
+		r.Route("/kid", func(r chi.Router) {
+			r.Use(middleware.RequireRole("kid"))
+
+			r.Get("/dashboard", kidHandler.GetDashboard)
+			r.Post("/tasks/{id}/log", kidHandler.LogProgress)
+			r.Post("/tasks/{id}/submit", kidHandler.SubmitTask)
+		})
+	})
+
+	log.Printf("EarnSmart Backend API starting on port :%s", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
+	}
+}
