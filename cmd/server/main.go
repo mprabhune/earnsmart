@@ -8,6 +8,7 @@ import (
 	"earnsmart/internal/database"
 	"earnsmart/internal/handlers"
 	"earnsmart/internal/middleware"
+	"earnsmart/web"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -38,6 +39,12 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+
+	// Web Portal — serves the embedded index.html
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(web.IndexHTML)
+	})
 
 	// Health Check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
