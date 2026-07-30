@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EarnSmart</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:  #1a6b3c;
+      --green2: #228b4e;
+      --gold:   #f5a623;
+      --gold2:  #e09010;
+      --bg:     #f4f6f4;
+      --card:   #ffffff;
+      --text:   #1a1a1a;
+      --muted:  #6b7280;
+      --border: #e5e7eb;
+      --red:    #dc2626;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--green);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 56px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    nav .logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.5px; }
+    nav .logo span { color: var(--gold); }
+    nav button.logout {
+      background: rgba(255,255,255,0.15);
+      border: none; color: #fff;
+      padding: 6px 14px; border-radius: 20px;
+      cursor: pointer; font-size: .85rem;
+    }
+    nav button.logout:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── HERO / LANDING ── */
+    .hero {
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--green) 0%, #0f3d22 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 40px 20px;
+      color: #fff;
+    }
+    .hero h1 { font-size: 2.6rem; font-weight: 800; letter-spacing: -1px; }
+    .hero h1 span { color: var(--gold); }
+    .hero p { margin-top: 12px; font-size: 1.1rem; opacity: .8; max-width: 380px; }
+    .hero .cards {
+      display: flex; gap: 20px; margin-top: 48px; flex-wrap: wrap; justify-content: center;
+    }
+    .role-card {
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      cursor: pointer;
+      transition: all .2s;
+      min-width: 180px;
+    }
+    .role-card:hover {
+      background: rgba(255,255,255,0.2);
+      border-color: var(--gold);
+      transform: translateY(-4px);
+    }
+    .role-card .icon { font-size: 3rem; }
+    .role-card h2 { margin-top: 12px; font-size: 1.1rem; }
+
+    /* ── AUTH ── */
+    .auth-wrap {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      background: linear-gradient(135deg, var(--green) 0%, #0f3d22 100%);
+    }
+    .auth-box {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .auth-box h2 { font-size: 1.5rem; margin-bottom: 6px; }
+    .auth-box .sub { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+
+    .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 24px; }
+    .tab-btn {
+      flex: 1; padding: 10px;
+      background: none; border: none;
+      font-size: .95rem; cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all .2s;
+    }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); font-weight: 600; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 6px; color: var(--muted); }
+    input[type=text], input[type=email], input[type=password], input[type=number] {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .95rem; margin-bottom: 16px;
+      transition: border-color .2s;
+      background: #fafafa;
+    }
+    input:focus { outline: none; border-color: var(--green); background: #fff; }
+
+    .btn {
+      width: 100%; padding: 12px;
+      background: var(--green); color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .btn:hover { background: var(--green2); }
+    .btn.gold { background: var(--gold); color: #fff; }
+    .btn.gold:hover { background: var(--gold2); }
+    .btn.outline {
+      background: none; border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+    .btn.outline:hover { border-color: var(--green); color: var(--green); }
+    .btn.danger { background: var(--red); }
+    .btn.sm { width: auto; padding: 7px 16px; font-size: .85rem; border-radius: 6px; }
+
+    .back-link {
+      display: inline-block; margin-bottom: 20px;
+      color: rgba(255,255,255,0.7); text-decoration: none; font-size: .9rem;
+      cursor: pointer;
+    }
+    .back-link:hover { color: #fff; }
+
+    .alert {
+      padding: 10px 14px; border-radius: 8px;
+      font-size: .88rem; margin-bottom: 16px;
+    }
+    .alert.error { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
+    .alert.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+
+    /* ── DASHBOARD SHELL ── */
+    .dash-wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ── TABS (dashboard) ── */
+    .dash-tabs {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 6px; margin-bottom: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    }
+    .dash-tab {
+      flex: 1; min-width: 80px;
+      padding: 9px 12px; border: none;
+      background: none; border-radius: 8px;
+      cursor: pointer; font-size: .88rem;
+      color: var(--muted); transition: all .2s;
+      white-space: nowrap;
+    }
+    .dash-tab.active { background: var(--green); color: #fff; font-weight: 600; }
+
+    .dash-panel { display: none; }
+    .dash-panel.active { display: block; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      margin-bottom: 16px;
+    }
+    .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+    .card .meta { font-size: .82rem; color: var(--muted); }
+
+    .card-row {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+    }
+    .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* ── STAT BADGES ── */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: .78rem; font-weight: 600;
+    }
+    .badge.green { background: #dcfce7; color: #166534; }
+    .badge.gold  { background: #fef9c3; color: #854d0e; }
+    .badge.blue  { background: #dbeafe; color: #1e40af; }
+    .badge.red   { background: #fee2e2; color: #991b1b; }
+    .badge.gray  { background: #f3f4f6; color: #374151; }
+
+    /* ── BALANCE ── */
+    .balance-card {
+      background: linear-gradient(135deg, var(--green), #0f3d22);
+      color: #fff; border-radius: var(--radius);
+      padding: 28px 24px; margin-bottom: 24px;
+    }
+    .balance-card .label { opacity: .75; font-size: .9rem; }
+    .balance-card .amount { font-size: 3rem; font-weight: 800; line-height: 1; margin-top: 4px; }
+    .balance-card .amount span { font-size: 1.5rem; font-weight: 400; }
+
+    /* ── FORM INLINE ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .section-header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 16px;
+    }
+    .section-header h2 { font-size: 1.1rem; font-weight: 700; }
+
+    select {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .95rem; margin-bottom: 16px;
+      background: #fafafa; cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--green); }
+
+    textarea {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .95rem; margin-bottom: 16px;
+      resize: vertical; min-height: 80px;
+      background: #fafafa;
+    }
+    textarea:focus { outline: none; border-color: var(--green); }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 200;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card); border-radius: var(--radius);
+      padding: 28px 24px; width: 100%; max-width: 460px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 10px; margin-top: 4px; }
+    .modal-footer .btn { flex: 1; }
+
+    .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+    .empty .icon { font-size: 2.5rem; }
+    .empty p { margin-top: 8px; }
+
+    .progress-bar {
+      height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+    }
+    .progress-bar .fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .3s; }
+
+    .spinner {
+      display: inline-block; width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .kid-id-box {
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; padding: 12px 16px; margin-top: 12px;
+    }
+    .kid-id-box .label { font-size: .8rem; color: var(--muted); }
+    .kid-id-box .id { font-family: monospace; font-size: .95rem; word-break: break-all; }
+
+    .ledger-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .ledger-row:last-child { border-bottom: none; }
+    .ledger-row .type { font-size: .8rem; }
+    .ledger-row .amt { font-weight: 700; }
+    .ledger-row .amt.earned { color: var(--green); }
+    .ledger-row .amt.payout { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ LANDING ═══════════════════════════════════ -->
+<div id="screen-landing" class="screen active">
+  <div class="hero">
+    <h1>Earn<span>Smart</span></h1>
+    <p>Family task &amp; rewards platform — parents assign, kids earn.</p>
+    <div class="cards">
+      <div class="role-card" onclick="App.goParentAuth()">
+        <div class="icon">👨‍👩‍👧</div>
+        <h2>I'm a Parent</h2>
+      </div>
+      <div class="role-card" onclick="App.goKidAuth()">
+        <div class="icon">⭐</div>
+        <h2>I'm a Kid</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ PARENT AUTH ═══════════════════════════════ -->
+<div id="screen-parent-auth" class="screen">
+  <div class="auth-wrap">
+    <div>
+      <a class="back-link" onclick="App.show('landing')">← Back</a>
+      <div class="auth-box">
+        <h2>Parent Portal</h2>
+        <p class="sub">Manage tasks, kids, and rewards</p>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="App.switchTab('parent-auth','login')">Login</button>
+          <button class="tab-btn" onclick="App.switchTab('parent-auth','register')">Create Account</button>
+        </div>
+
+        <!-- Login -->
+        <div id="parent-auth-login" class="tab-panel active">
+          <div id="parent-login-alert"></div>
+          <label>Email</label>
+          <input type="email" id="pl-email" placeholder="you@example.com" />
+          <label>Password</label>
+          <input type="password" id="pl-password" placeholder="••••••••" />
+          <button class="btn" onclick="App.parentLogin()">Sign In</button>
+        </div>
+
+        <!-- Register -->
+        <div id="parent-auth-register" class="tab-panel">
+          <div id="parent-register-alert"></div>
+          <label>Family Name</label>
+          <input type="text" id="pr-family" placeholder="The Smith Family" />
+          <label>Your Full Name</label>
+          <input type="text" id="pr-name" placeholder="Jane Smith" />
+          <label>Email</label>
+          <input type="email" id="pr-email" placeholder="you@example.com" />
+          <label>Password</label>
+          <input type="password" id="pr-password" placeholder="Choose a strong password" />
+          <button class="btn gold" onclick="App.parentRegister()">Create Family Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ KID AUTH ══════════════════════════════════ -->
+<div id="screen-kid-auth" class="screen">
+  <div class="auth-wrap">
+    <div>
+      <a class="back-link" onclick="App.show('landing')">← Back</a>
+      <div class="auth-box">
+        <h2>Kid Login ⭐</h2>
+        <p class="sub">Enter your Kid ID and 4-digit PIN</p>
+        <div id="kid-login-alert"></div>
+        <label>Kid ID <span style="font-weight:400;color:var(--muted)">(ask a parent)</span></label>
+        <input type="text" id="kl-id" placeholder="Paste your Kid ID here" />
+        <label>4-Digit PIN</label>
+        <input type="password" id="kl-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+        <button class="btn gold" onclick="App.kidLogin()">Let's Go! 🚀</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PARENT DASHBOARD ══════════════════════════════ -->
+<div id="screen-parent-dash" class="screen">
+  <nav>
+    <span class="logo">Earn<span>Smart</span></span>
+    <span id="parent-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem"></span>
+    <button class="logout" onclick="App.logout()">Sign Out</button>
+  </nav>
+  <div class="dash-wrap">
+    <div class="dash-tabs">
+      <button class="dash-tab active" onclick="App.parentTab('kids')">👨‍👧 Kids</button>
+      <button class="dash-tab" onclick="App.parentTab('tasks')">📋 Tasks</button>
+      <button class="dash-tab" onclick="App.parentTab('approvals')">✅ Approvals</button>
+      <button class="dash-tab" onclick="App.parentTab('summary')">📊 Summary</button>
+      <button class="dash-tab" onclick="App.parentTab('payout')">💸 Payout</button>
+    </div>
+
+    <!-- Kids Tab -->
+    <div id="parent-panel-kids" class="dash-panel active">
+      <div class="section-header">
+        <h2>Kids</h2>
+        <button class="btn sm gold" onclick="App.openModal('modal-add-kid')">+ Add Kid</button>
+      </div>
+      <div id="kids-list"></div>
+    </div>
+
+    <!-- Tasks Tab -->
+    <div id="parent-panel-tasks" class="dash-panel">
+      <div class="section-header">
+        <h2>Task Definitions</h2>
+        <button class="btn sm gold" onclick="App.openModal('modal-add-task')">+ New Task</button>
+      </div>
+      <div id="tasks-list"></div>
+    </div>
+
+    <!-- Approvals Tab -->
+    <div id="parent-panel-approvals" class="dash-panel">
+      <div class="section-header"><h2>Pending Approvals</h2></div>
+      <div id="approvals-list"></div>
+    </div>
+
+    <!-- Summary Tab -->
+    <div id="parent-panel-summary" class="dash-panel">
+      <div class="section-header"><h2>Family Summary</h2></div>
+      <div id="summary-list"></div>
+    </div>
+
+    <!-- Payout Tab -->
+    <div id="parent-panel-payout" class="dash-panel">
+      <div class="card">
+        <h3 style="margin-bottom:16px">Record Cash Payout</h3>
+        <div id="payout-alert"></div>
+        <label>Select Kid</label>
+        <select id="payout-kid"></select>
+        <label>Amount ($)</label>
+        <input type="number" id="payout-amount" placeholder="0.00" min="0.01" step="0.01" />
+        <button class="btn gold" onclick="App.processPayout()">Record Payout 💸</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ KID DASHBOARD ════════════════════════════════ -->
+<div id="screen-kid-dash" class="screen">
+  <nav>
+    <span class="logo">Earn<span>Smart</span></span>
+    <span id="kid-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem"></span>
+    <button class="logout" onclick="App.logout()">Sign Out</button>
+  </nav>
+  <div class="dash-wrap">
+    <div id="kid-balance-card" class="balance-card">
+      <div class="label">Current Balance</div>
+      <div class="amount"><span>$</span><span id="kid-balance">0.00</span></div>
+    </div>
+
+    <div class="dash-tabs">
+      <button class="dash-tab active" onclick="App.kidTab('tasks')">📋 My Tasks</button>
+      <button class="dash-tab" onclick="App.kidTab('history')">📜 History</button>
+    </div>
+
+    <div id="kid-panel-tasks" class="dash-panel active">
+      <div id="kid-tasks-list"></div>
+    </div>
+    <div id="kid-panel-history" class="dash-panel">
+      <div class="card">
+        <div id="kid-ledger-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════ MODALS ═════════════════════════════════════ -->
+
+<!-- Add Kid -->
+<div id="modal-add-kid" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-add-kid')">
+  <div class="modal">
+    <h3>Add Kid</h3>
+    <div id="add-kid-alert"></div>
+    <label>Full Name</label>
+    <input type="text" id="kid-name" placeholder="Alex Smith" />
+    <label>4-Digit PIN</label>
+    <input type="password" id="kid-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+    <div id="new-kid-result" style="display:none" class="kid-id-box">
+      <div class="label">Kid ID (share with kid for login)</div>
+      <div class="id" id="new-kid-id"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-add-kid')">Close</button>
+      <button class="btn gold" id="add-kid-btn" onclick="App.createKid()">Add Kid</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Task -->
+<div id="modal-add-task" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-add-task')">
+  <div class="modal">
+    <h3>New Task</h3>
+    <div id="add-task-alert"></div>
+    <label>Title</label>
+    <input type="text" id="task-title" placeholder="Math homework" />
+    <label>Description (optional)</label>
+    <textarea id="task-desc" placeholder="Complete 5 pages of math..."></textarea>
+    <div class="form-grid">
+      <div>
+        <label>Type</label>
+        <select id="task-type">
+          <option value="adhoc">Ad-hoc (one-time)</option>
+          <option value="daily_recurring">Daily Recurring</option>
+          <option value="accumulation">Accumulation</option>
+        </select>
+      </div>
+      <div>
+        <label>Target Units</label>
+        <input type="number" id="task-units" value="1" min="1" />
+      </div>
+    </div>
+    <label>Reward Amount ($)</label>
+    <input type="number" id="task-reward" placeholder="1.00" min="0" step="0.01" />
+    <label>Assign to (optional — leave blank for all kids)</label>
+    <select id="task-assign-kid">
+      <option value="">All Kids</option>
+    </select>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-add-task')">Cancel</button>
+      <button class="btn gold" onclick="App.createTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Task -->
+<div id="modal-edit-task" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-edit-task')">
+  <div class="modal">
+    <h3>Edit Task</h3>
+    <input type="hidden" id="edit-task-id" />
+    <div id="edit-task-alert"></div>
+    <label>Title</label>
+    <input type="text" id="edit-task-title" />
+    <label>Reward Amount ($)</label>
+    <input type="number" id="edit-task-reward" min="0" step="0.01" />
+    <label>Target Units</label>
+    <input type="number" id="edit-task-units" min="1" />
+    <label>Active</label>
+    <select id="edit-task-active">
+      <option value="true">Active</option>
+      <option value="false">Inactive</option>
+    </select>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-edit-task')">Cancel</button>
+      <button class="btn" onclick="App.updateTask()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Log Progress (kid) -->
+<div id="modal-log-progress" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-log-progress')">
+  <div class="modal">
+    <h3 id="log-progress-title">Log Progress</h3>
+    <input type="hidden" id="log-progress-id" />
+    <div id="log-progress-alert"></div>
+    <label>Units to add</label>
+    <input type="number" id="log-units" value="1" min="1" />
+    <label>Notes (optional)</label>
+    <input type="text" id="log-notes" placeholder="Completed chapter 3..." />
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-log-progress')">Cancel</button>
+      <button class="btn gold" onclick="App.logProgress()">Log Progress ✓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://earnsmart-backend.onrender.com';
+
+const state = {
+  token: localStorage.getItem('es_token'),
+  role:  localStorage.getItem('es_role'),
+  user:  JSON.parse(localStorage.getItem('es_user') || 'null'),
+  family:JSON.parse(localStorage.getItem('es_family') || 'null'),
+  kids:  [],
+  tasks: [],
+};
+
+async function req(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (state.token) opts.headers['Authorization'] = 'Bearer ' + state.token;
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { App.logout(); return null; }
+  return { ok: res.ok, status: res.status, data };
+}
+
+function alert_(id, msg, type='error') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = msg ? `<div class="alert ${type}">${msg}</div>` : '';
+}
+
+function fmt$(n) { return '$' + parseFloat(n || 0).toFixed(2); }
+function fmtDate(s) {
+  if (!s) return '';
+  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function statusBadge(s) {
+  const map = {
+    pending: 'gray', in_progress: 'blue', submitted: 'gold',
+    approved: 'green', rejected: 'red',
+  };
+  return `<span class="badge ${map[s] || 'gray'}">${s.replace('_',' ')}</span>`;
+}
+
+const App = {
+
+  // ── NAVIGATION ──────────────────────────────────────────────
+  show(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+  },
+
+  switchTab(group, tab) {
+    const panels = document.querySelectorAll(`[id^="${group}-"]`);
+    panels.forEach(p => p.classList.remove('active'));
+    document.getElementById(`${group}-${tab}`).classList.add('active');
+    // update tab buttons
+    const screen = document.getElementById('screen-' + group);
+    screen.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  },
+
+  goParentAuth() { this.show('parent-auth'); },
+  goKidAuth()    { this.show('kid-auth'); },
+
+  logout() {
+    localStorage.removeItem('es_token');
+    localStorage.removeItem('es_role');
+    localStorage.removeItem('es_user');
+    localStorage.removeItem('es_family');
+    Object.assign(state, { token:null, role:null, user:null, family:null, kids:[], tasks:[] });
+    this.show('landing');
+  },
+
+  saveSession(token, role, user, family) {
+    state.token = token; state.role = role; state.user = user; state.family = family;
+    localStorage.setItem('es_token', token);
+    localStorage.setItem('es_role', role);
+    localStorage.setItem('es_user', JSON.stringify(user));
+    localStorage.setItem('es_family', JSON.stringify(family));
+  },
+
+  // ── PARENT AUTH ─────────────────────────────────────────────
+  async parentLogin() {
+    const email    = document.getElementById('pl-email').value.trim();
+    const password = document.getElementById('pl-password').value;
+    if (!email || !password) return alert_('parent-login-alert', 'Email and password are required.');
+    const r = await req('POST', '/api/v1/auth/parent/login', { email, password });
+    if (!r) return;
+    if (!r.ok) return alert_('parent-login-alert', r.data.error || 'Login failed.');
+    this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
+    this.showParentDash();
+  },
+
+  async parentRegister() {
+    const family_name = document.getElementById('pr-family').value.trim();
+    const full_name   = document.getElementById('pr-name').value.trim();
+    const email       = document.getElementById('pr-email').value.trim();
+    const password    = document.getElementById('pr-password').value;
+    if (!family_name || !full_name || !email || !password)
+      return alert_('parent-register-alert', 'All fields are required.');
+    const r = await req('POST', '/api/v1/auth/parent/register', { family_name, full_name, email, password });
+    if (!r) return;
+    if (!r.ok) return alert_('parent-register-alert', r.data.error || 'Registration failed.');
+    this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
+    this.showParentDash();
+  },
+
+  // ── KID AUTH ────────────────────────────────────────────────
+  async kidLogin() {
+    const kid_id = document.getElementById('kl-id').value.trim();
+    const pin    = document.getElementById('kl-pin').value.trim();
+    if (!kid_id || pin.length !== 4) return alert_('kid-login-alert', 'Enter your Kid ID and 4-digit PIN.');
+    const r = await req('POST', '/api/v1/auth/kid/login', { kid_id, pin });
+    if (!r) return;
+    if (!r.ok) return alert_('kid-login-alert', r.data.error || 'Login failed. Check your ID and PIN.');
+    this.saveSession(r.data.token, 'kid', r.data.user, r.data.family);
+    this.showKidDash();
+  },
+
+  // ── PARENT DASHBOARD ────────────────────────────────────────
+  async showParentDash() {
+    document.getElementById('parent-nav-name').textContent =
+      `${state.user.full_name} · ${state.family.family_name}`;
+    this.show('parent-dash');
+    await this.loadKids();
+    await this.loadTasks();
+  },
+
+  parentTab(name) {
+    document.querySelectorAll('.dash-panel[id^="parent-panel-"]').forEach(p => p.classList.remove('active'));
+    document.getElementById('parent-panel-' + name).classList.add('active');
+    document.querySelectorAll('.dash-tab').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    if (name === 'approvals') this.loadApprovals();
+    if (name === 'summary')   this.loadSummary();
+    if (name === 'payout')    this.renderPayoutKids();
+  },
+
+  // Kids
+  async loadKids() {
+    const r = await req('GET', '/api/v1/parent/kids');
+    if (!r || !r.ok) return;
+    state.kids = r.data;
+    this.renderKids();
+  },
+
+  renderKids() {
+    const el = document.getElementById('kids-list');
+    if (!state.kids.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">👧</div><p>No kids yet. Add your first kid!</p></div>`;
+      return;
+    }
+    el.innerHTML = state.kids.map(k => `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <div class="card-row" style="gap:8px;justify-content:flex-start">
+              <h3>${k.full_name}</h3>
+              <span class="badge green">${fmt$(k.current_balance)}</span>
+            </div>
+            <div class="meta">Joined ${fmtDate(k.created_at)}</div>
+            <div class="kid-id-box" style="margin-top:10px">
+              <div class="label">Kid ID (for login)</div>
+              <div class="id">${k.id}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async createKid() {
+    const full_name = document.getElementById('kid-name').value.trim();
+    const pin       = document.getElementById('kid-pin').value.trim();
+    if (!full_name || pin.length !== 4) return alert_('add-kid-alert', 'Name and 4-digit PIN required.');
+    const r = await req('POST', '/api/v1/parent/kids', { full_name, pin });
+    if (!r) return;
+    if (!r.ok) return alert_('add-kid-alert', r.data.error || 'Failed to create kid.');
+    const kid = r.data;
+    document.getElementById('new-kid-id').textContent = kid.id;
+    document.getElementById('new-kid-result').style.display = 'block';
+    document.getElementById('add-kid-btn').style.display = 'none';
+    alert_('add-kid-alert', `${kid.full_name} added! Share the Kid ID above for login.`, 'success');
+    document.getElementById('kid-name').value = '';
+    document.getElementById('kid-pin').value = '';
+    await this.loadKids();
+  },
+
+  // Tasks
+  async loadTasks() {
+    const r = await req('GET', '/api/v1/parent/tasks');
+    if (!r || !r.ok) return;
+    state.tasks = r.data;
+    this.renderTasks();
+  },
+
+  renderTasks() {
+    const el = document.getElementById('tasks-list');
+    if (!state.tasks.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No tasks yet. Create one!</p></div>`;
+      return;
+    }
+    el.innerHTML = state.tasks.map(t => `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+              <h3>${t.title}</h3>
+              <span class="badge ${t.is_active ? 'green' : 'gray'}">${t.is_active ? 'active' : 'inactive'}</span>
+            </div>
+            <div class="meta">${t.task_type.replace('_',' ')} · ${fmt$(t.reward_amount)} · Target: ${t.target_units} unit${t.target_units > 1 ? 's' : ''}</div>
+            ${t.description ? `<div class="meta" style="margin-top:4px">${t.description}</div>` : ''}
+          </div>
+          <div class="card-actions">
+            <button class="btn sm outline" onclick="App.openEditTask('${t.id}')">Edit</button>
+            <button class="btn sm danger" onclick="App.deleteTask('${t.id}','${t.title}')">Del</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async createTask() {
+    const title         = document.getElementById('task-title').value.trim();
+    const description   = document.getElementById('task-desc').value.trim();
+    const task_type     = document.getElementById('task-type').value;
+    const target_units  = parseInt(document.getElementById('task-units').value) || 1;
+    const reward_amount = parseFloat(document.getElementById('task-reward').value) || 0;
+    const assign_to_kid = document.getElementById('task-assign-kid').value || null;
+
+    if (!title) return alert_('add-task-alert', 'Title is required.');
+    const body = { title, description, task_type, target_units, reward_amount };
+    if (assign_to_kid) body.assign_to_kid = assign_to_kid;
+
+    const r = await req('POST', '/api/v1/parent/tasks', body);
+    if (!r) return;
+    if (!r.ok) return alert_('add-task-alert', r.data.error || 'Failed to create task.');
+    alert_('add-task-alert', 'Task created!', 'success');
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-desc').value = '';
+    document.getElementById('task-reward').value = '';
+    this.closeModal('modal-add-task');
+    await this.loadTasks();
+  },
+
+  openEditTask(id) {
+    const t = state.tasks.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('edit-task-id').value     = t.id;
+    document.getElementById('edit-task-title').value  = t.title;
+    document.getElementById('edit-task-reward').value = t.reward_amount;
+    document.getElementById('edit-task-units').value  = t.target_units;
+    document.getElementById('edit-task-active').value = String(t.is_active);
+    alert_('edit-task-alert', '');
+    this.openModal('modal-edit-task');
+  },
+
+  async updateTask() {
+    const id            = document.getElementById('edit-task-id').value;
+    const title         = document.getElementById('edit-task-title').value.trim();
+    const reward_amount = parseFloat(document.getElementById('edit-task-reward').value);
+    const target_units  = parseInt(document.getElementById('edit-task-units').value);
+    const is_active     = document.getElementById('edit-task-active').value === 'true';
+    const r = await req('PUT', `/api/v1/parent/tasks/${id}`, { title, reward_amount, target_units, is_active });
+    if (!r) return;
+    if (!r.ok) return alert_('edit-task-alert', r.data.error || 'Update failed.');
+    this.closeModal('modal-edit-task');
+    await this.loadTasks();
+  },
+
+  async deleteTask(id, title) {
+    if (!confirm(`Delete task "${title}"? This cannot be undone.`)) return;
+    const r = await req('DELETE', `/api/v1/parent/tasks/${id}`);
+    if (!r) return;
+    if (!r.ok) return alert('Failed to delete task.');
+    await this.loadTasks();
+  },
+
+  // Populate task assign-kid select
+  renderPayoutKids() {
+    const sel = document.getElementById('payout-kid');
+    sel.innerHTML = state.kids.map(k => `<option value="${k.id}">${k.full_name} (${fmt$(k.current_balance)})</option>`).join('');
+  },
+
+  // Approvals
+  async loadApprovals() {
+    const r = await req('GET', '/api/v1/parent/approvals');
+    if (!r || !r.ok) return;
+    const el = document.getElementById('approvals-list');
+    if (!r.data.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">✅</div><p>No pending approvals. All caught up!</p></div>`;
+      return;
+    }
+    el.innerHTML = r.data.map(l => `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+              <h3>${l.task_title}</h3>
+              <span class="badge gold">submitted</span>
+            </div>
+            <div class="meta">
+              👤 ${l.assigned_to_name} &nbsp;·&nbsp;
+              💰 ${fmt$(l.reward_amount)} &nbsp;·&nbsp;
+              Progress: ${l.current_progress_units}/${l.target_units}
+            </div>
+            ${l.submitted_at ? `<div class="meta">Submitted ${fmtDate(l.submitted_at)}</div>` : ''}
+          </div>
+          <div class="card-actions">
+            <button class="btn sm gold" onclick="App.reviewTask('${l.id}', true)">Approve</button>
+            <button class="btn sm danger" onclick="App.reviewTask('${l.id}', false)">Reject</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async reviewTask(id, approved) {
+    const r = await req('POST', `/api/v1/parent/approvals/${id}/review`, { approved });
+    if (!r) return;
+    if (!r.ok) return alert('Review failed: ' + (r.data.error || ''));
+    await this.loadApprovals();
+    await this.loadKids(); // refresh balances
+  },
+
+  // Summary
+  async loadSummary() {
+    const r = await req('GET', '/api/v1/parent/summary');
+    if (!r || !r.ok) return;
+    const el = document.getElementById('summary-list');
+    if (!r.data.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">📊</div><p>Add kids to see their summary.</p></div>`;
+      return;
+    }
+    el.innerHTML = r.data.map(s => `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <h3>${s.profile.full_name}</h3>
+            <div class="meta" style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
+              <span class="badge green">Balance: ${fmt$(s.current_balance)}</span>
+              <span class="badge blue">Total Earned: ${fmt$(s.total_earned)}</span>
+              <span class="badge gray">✅ ${s.completed_tasks} done</span>
+              <span class="badge gold">⏳ ${s.pending_tasks} pending</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  // Payout
+  async processPayout() {
+    const kid_id = document.getElementById('payout-kid').value;
+    const amount = parseFloat(document.getElementById('payout-amount').value);
+    if (!kid_id || !amount || amount <= 0) return alert_('payout-alert', 'Select a kid and enter a valid amount.');
+    const r = await req('POST', '/api/v1/parent/payout', { kid_id, amount });
+    if (!r) return;
+    if (!r.ok) return alert_('payout-alert', r.data.error || 'Payout failed.');
+    alert_('payout-alert', `Payout of ${fmt$(amount)} recorded! New balance: ${fmt$(r.data.new_balance)}`, 'success');
+    document.getElementById('payout-amount').value = '';
+    await this.loadKids();
+    this.renderPayoutKids();
+  },
+
+  // ── KID DASHBOARD ───────────────────────────────────────────
+  async showKidDash() {
+    document.getElementById('kid-nav-name').textContent = state.user.full_name;
+    this.show('kid-dash');
+    await this.loadKidDash();
+  },
+
+  async loadKidDash() {
+    const r = await req('GET', '/api/v1/kid/dashboard');
+    if (!r || !r.ok) return;
+    const { kid, tasks, ledger_history } = r.data;
+    document.getElementById('kid-balance').textContent = parseFloat(kid.current_balance).toFixed(2);
+    this.renderKidTasks(tasks);
+    this.renderKidLedger(ledger_history);
+  },
+
+  kidTab(name) {
+    document.querySelectorAll('.dash-panel[id^="kid-panel-"]').forEach(p => p.classList.remove('active'));
+    document.getElementById('kid-panel-' + name).classList.add('active');
+    document.querySelectorAll('#screen-kid-dash .dash-tab').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+  },
+
+  renderKidTasks(tasks) {
+    const el = document.getElementById('kid-tasks-list');
+    if (!tasks.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No tasks assigned yet. Check back soon!</p></div>`;
+      return;
+    }
+    el.innerHTML = tasks.map(t => {
+      const pct = Math.min(100, Math.round((t.current_progress_units / (t.target_units || 1)) * 100));
+      const canLog    = ['pending','in_progress'].includes(t.status);
+      const canSubmit = t.status === 'in_progress';
+      return `
+        <div class="card">
+          <div class="card-row" style="margin-bottom:10px">
+            <div>
+              <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+                <h3>${t.task_title}</h3>
+                ${statusBadge(t.status)}
+              </div>
+              <div class="meta">${t.task_type.replace('_',' ')} · Reward: ${fmt$(t.reward_amount)}</div>
+            </div>
+            <div class="card-actions">
+              ${canLog ? `<button class="btn sm gold" onclick="App.openLogProgress('${t.id}','${t.task_title}')">+ Log</button>` : ''}
+              ${canSubmit ? `<button class="btn sm" onclick="App.submitTask('${t.id}')">Submit ✓</button>` : ''}
+            </div>
+          </div>
+          ${t.target_units > 1 ? `
+            <div style="margin-top:6px">
+              <div class="meta" style="margin-bottom:4px">${t.current_progress_units} / ${t.target_units} units</div>
+              <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+            </div>` : ''}
+        </div>
+      `;
+    }).join('');
+  },
+
+  renderKidLedger(ledger) {
+    const el = document.getElementById('kid-ledger-list');
+    if (!ledger.length) {
+      el.innerHTML = `<div class="empty"><p>No transactions yet.</p></div>`;
+      return;
+    }
+    el.innerHTML = ledger.map(l => `
+      <div class="ledger-row">
+        <div>
+          <div class="type">${l.transaction_type}</div>
+          <div class="meta">${fmtDate(l.created_at)}</div>
+        </div>
+        <div class="amt ${l.transaction_type === 'EARNED' ? 'earned' : 'payout'}">
+          ${l.transaction_type === 'EARNED' ? '+' : '-'}${fmt$(l.amount)}
+        </div>
+      </div>
+    `).join('');
+  },
+
+  openLogProgress(id, title) {
+    document.getElementById('log-progress-id').value     = id;
+    document.getElementById('log-progress-title').textContent = `Log Progress: ${title}`;
+    document.getElementById('log-units').value = 1;
+    document.getElementById('log-notes').value = '';
+    alert_('log-progress-alert', '');
+    this.openModal('modal-log-progress');
+  },
+
+  async logProgress() {
+    const id    = document.getElementById('log-progress-id').value;
+    const units = parseInt(document.getElementById('log-units').value) || 1;
+    const notes = document.getElementById('log-notes').value.trim() || null;
+    const r = await req('POST', `/api/v1/kid/tasks/${id}/log`, { units, notes });
+    if (!r) return;
+    if (!r.ok) return alert_('log-progress-alert', r.data.error || 'Failed to log progress.');
+    const msg = r.data.auto_submitted
+      ? '🎉 Target reached! Task submitted for approval.'
+      : `Progress logged! (${r.data.current_progress_units}/${r.data.target_units})`;
+    this.closeModal('modal-log-progress');
+    await this.loadKidDash();
+    alert(msg);
+  },
+
+  async submitTask(id) {
+    if (!confirm('Submit this task to your parent for approval?')) return;
+    const r = await req('POST', `/api/v1/kid/tasks/${id}/submit`);
+    if (!r) return;
+    if (!r.ok) return alert(r.data.error || 'Submit failed.');
+    await this.loadKidDash();
+  },
+
+  // ── MODALS ──────────────────────────────────────────────────
+  openModal(id) {
+    // reset add-kid modal state each time
+    if (id === 'modal-add-kid') {
+      document.getElementById('new-kid-result').style.display = 'none';
+      document.getElementById('add-kid-btn').style.display = '';
+      alert_('add-kid-alert', '');
+      // populate assign-kid dropdown in add-task while here
+    }
+    if (id === 'modal-add-task') {
+      const sel = document.getElementById('task-assign-kid');
+      sel.innerHTML = '<option value="">All Kids</option>' +
+        state.kids.map(k => `<option value="${k.id}">${k.full_name}</option>`).join('');
+      alert_('add-task-alert', '');
+    }
+    document.getElementById(id).classList.add('open');
+  },
+
+  closeModal(id) { document.getElementById(id).classList.remove('open'); },
+
+  closeModalOutside(e, id) {
+    if (e.target.id === id) this.closeModal(id);
+  },
+
+  // ── INIT ────────────────────────────────────────────────────
+  init() {
+    if (state.token && state.role === 'parent' && state.user) {
+      this.showParentDash();
+    } else if (state.token && state.role === 'kid' && state.user) {
+      this.showKidDash();
+    } else {
+      this.show('landing');
+    }
+  },
+};
+
+App.init();
+</script>
+</body>
+</html>
