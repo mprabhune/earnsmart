@@ -46,6 +46,12 @@ func main() {
 		_, _ = w.Write(web.IndexHTML)
 	})
 
+	// PWA Manifest (required for Android TWA)
+	r.Get("/manifest.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/manifest+json")
+		_, _ = w.Write(web.ManifestJSON)
+	})
+
 	// Health Check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

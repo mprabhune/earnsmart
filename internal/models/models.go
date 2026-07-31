@@ -100,12 +100,12 @@ type RegisterParentRequest struct {
 	FamilyName string `json:"family_name"`
 	FullName   string `json:"full_name"`
 	Email      string `json:"email"`
-	Password   string `json:"password"`
+	PIN        string `json:"pin"` // 4-digit PIN
 }
 
 type ParentLoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email string `json:"email"`
+	PIN   string `json:"pin"` // 4-digit PIN
 }
 
 type KidLoginRequest struct {

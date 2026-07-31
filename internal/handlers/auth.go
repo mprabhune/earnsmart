@@ -32,8 +32,8 @@ func (h *AuthHandler) RegisterParent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.FamilyName == "" || req.FullName == "" || req.Email == "" || req.Password == "" {
-		RespondError(w, http.StatusBadRequest, "family_name, full_name, email, and password are required")
+	if req.FamilyName == "" || req.FullName == "" || req.Email == "" || len(req.PIN) != 4 {
+		RespondError(w, http.StatusBadRequest, "family_name, full_name, email, and a 4-digit PIN are required")
 		return
 	}
 
@@ -55,10 +55,10 @@ func (h *AuthHandler) RegisterParent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	// Hash PIN
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.PIN), bcrypt.DefaultCost)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, "Failed to hash password")
+		RespondError(w, http.StatusInternalServerError, "Failed to hash PIN")
 		return
 	}
 
@@ -102,8 +102,8 @@ func (h *AuthHandler) ParentLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		RespondError(w, http.StatusBadRequest, "email and password are required")
+	if req.Email == "" || len(req.PIN) != 4 {
+		RespondError(w, http.StatusBadRequest, "email and 4-digit PIN are required")
 		return
 	}
 
@@ -124,7 +124,7 @@ func (h *AuthHandler) ParentLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(req.PIN)); err != nil {
 		RespondError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}

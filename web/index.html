@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EarnSmart</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a6b3c" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -339,8 +341,8 @@
           <div id="parent-login-alert"></div>
           <label>Email</label>
           <input type="email" id="pl-email" placeholder="you@example.com" />
-          <label>Password</label>
-          <input type="password" id="pl-password" placeholder="••••••••" />
+          <label>4-Digit PIN</label>
+          <input type="password" id="pl-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
           <button class="btn" onclick="App.parentLogin()">Sign In</button>
         </div>
 
@@ -353,8 +355,8 @@
           <input type="text" id="pr-name" placeholder="Jane Smith" />
           <label>Email</label>
           <input type="email" id="pr-email" placeholder="you@example.com" />
-          <label>Password</label>
-          <input type="password" id="pr-password" placeholder="Choose a strong password" />
+          <label>4-Digit PIN</label>
+          <input type="password" id="pr-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
           <button class="btn gold" onclick="App.parentRegister()">Create Family Account</button>
         </div>
       </div>
@@ -679,10 +681,10 @@ const App = {
 
   // ── PARENT AUTH ─────────────────────────────────────────────
   async parentLogin() {
-    const email    = document.getElementById('pl-email').value.trim();
-    const password = document.getElementById('pl-password').value;
-    if (!email || !password) return alert_('parent-login-alert', 'Email and password are required.');
-    const r = await req('POST', '/api/v1/auth/parent/login', { email, password });
+    const email = document.getElementById('pl-email').value.trim();
+    const pin   = document.getElementById('pl-pin').value.trim();
+    if (!email || pin.length !== 4) return alert_('parent-login-alert', 'Email and 4-digit PIN are required.');
+    const r = await req('POST', '/api/v1/auth/parent/login', { email, pin });
     if (!r) return;
     if (!r.ok) return alert_('parent-login-alert', r.data.error || 'Login failed.');
     this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
@@ -693,10 +695,10 @@ const App = {
     const family_name = document.getElementById('pr-family').value.trim();
     const full_name   = document.getElementById('pr-name').value.trim();
     const email       = document.getElementById('pr-email').value.trim();
-    const password    = document.getElementById('pr-password').value;
-    if (!family_name || !full_name || !email || !password)
-      return alert_('parent-register-alert', 'All fields are required.');
-    const r = await req('POST', '/api/v1/auth/parent/register', { family_name, full_name, email, password });
+    const pin         = document.getElementById('pr-pin').value.trim();
+    if (!family_name || !full_name || !email || pin.length !== 4)
+      return alert_('parent-register-alert', 'All fields are required and PIN must be 4 digits.');
+    const r = await req('POST', '/api/v1/auth/parent/register', { family_name, full_name, email, pin });
     if (!r) return;
     if (!r.ok) return alert_('parent-register-alert', r.data.error || 'Registration failed.');
     this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
