@@ -245,8 +245,8 @@ func (h *ParentHandler) GetApprovals(w http.ResponseWriter, r *http.Request) {
 	claims, _ := middleware.GetClaims(r.Context())
 
 	rows, err := h.DB.Query(
-		`SELECT tl.id, tl.task_definition_id, tl.assigned_to, tl.status, tl.current_progress_units, 
-		        tl.notes, tl.submitted_at, tl.reviewed_at, tl.created_at,
+		`SELECT tl.id, tl.task_definition_id, tl.assigned_to, tl.status, tl.current_progress_units,
+		        tl.notes, tl.completed_at, tl.proof_image, tl.submitted_at, tl.reviewed_at, tl.created_at,
 		        td.title, td.description, td.task_type, td.reward_amount, td.target_units,
 		        p.full_name
 		 FROM task_logs tl
@@ -267,7 +267,7 @@ func (h *ParentHandler) GetApprovals(w http.ResponseWriter, r *http.Request) {
 		var l models.TaskLog
 		if err := rows.Scan(
 			&l.ID, &l.TaskDefinitionID, &l.AssignedTo, &l.Status, &l.CurrentProgressUnits,
-			&l.Notes, &l.SubmittedAt, &l.ReviewedAt, &l.CreatedAt,
+			&l.Notes, &l.CompletedAt, &l.ProofImage, &l.SubmittedAt, &l.ReviewedAt, &l.CreatedAt,
 			&l.TaskTitle, &l.TaskDescription, &l.TaskType, &l.RewardAmount, &l.TargetUnits,
 			&l.AssignedToName,
 		); err != nil {

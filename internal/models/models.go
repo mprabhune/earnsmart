@@ -69,17 +69,19 @@ type TaskLog struct {
 	Status               TaskStatus `json:"status"`
 	CurrentProgressUnits int        `json:"current_progress_units"`
 	Notes                *string    `json:"notes,omitempty"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty"`
+	ProofImage           *string    `json:"proof_image,omitempty"`
 	SubmittedAt          *time.Time `json:"submitted_at,omitempty"`
 	ReviewedAt           *time.Time `json:"reviewed_at,omitempty"`
 	CreatedAt            time.Time  `json:"created_at"`
 
 	// Optional joined fields for API responses
-	TaskTitle        string   `json:"task_title,omitempty"`
-	TaskDescription  *string  `json:"task_description,omitempty"`
-	TaskType         TaskType `json:"task_type,omitempty"`
-	RewardAmount     float64  `json:"reward_amount,omitempty"`
-	TargetUnits      int      `json:"target_units,omitempty"`
-	AssignedToName   string   `json:"assigned_to_name,omitempty"`
+	TaskTitle       string   `json:"task_title,omitempty"`
+	TaskDescription *string  `json:"task_description,omitempty"`
+	TaskType        TaskType `json:"task_type,omitempty"`
+	RewardAmount    float64  `json:"reward_amount,omitempty"`
+	TargetUnits     int      `json:"target_units,omitempty"`
+	AssignedToName  string   `json:"assigned_to_name,omitempty"`
 }
 
 type Ledger struct {
@@ -146,8 +148,10 @@ type ReviewTaskRequest struct {
 }
 
 type LogProgressRequest struct {
-	Units int     `json:"units"` // increment count or total units
-	Notes *string `json:"notes,omitempty"`
+	Units       int        `json:"units"`
+	Notes       *string    `json:"notes,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ProofImage  *string    `json:"proof_image,omitempty"` // base64 data URL
 }
 
 type PayoutRequest struct {

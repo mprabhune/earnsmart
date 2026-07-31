@@ -165,12 +165,20 @@ func (h *KidHandler) LogProgress(w http.ResponseWriter, r *http.Request) {
 		notes = req.Notes
 	}
 
+	completedAt := req.CompletedAt
+	if completedAt == nil {
+		now := time.Now()
+		completedAt = &now
+	}
+
 	err = h.DB.QueryRow(
 		`UPDATE task_logs
-		 SET current_progress_units = $1, status = $2, submitted_at = COALESCE($3, submitted_at), notes = COALESCE($4, notes)
-		 WHERE id = $5 AND assigned_to = $6
+		 SET current_progress_units = $1, status = $2, submitted_at = COALESCE($3, submitted_at),
+		     notes = COALESCE($4, notes), completed_at = $5,
+		     proof_image = COALESCE($6, proof_image)
+		 WHERE id = $7 AND assigned_to = $8
 		 RETURNING status, current_progress_units, submitted_at`,
-		newUnits, newStatus, submittedAt, notes, logID, claims.UserID,
+		newUnits, newStatus, submittedAt, notes, completedAt, req.ProofImage, logID, claims.UserID,
 	).Scan(&newStatus, &newUnits, &submittedAt)
 
 	if err != nil {
@@ -197,6 +205,9 @@ func (h *KidHandler) SubmitTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req models.LogProgressRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
 	var currentStatus models.TaskStatus
 	err = h.DB.QueryRow(
 		`SELECT status FROM task_logs WHERE id = $1 AND assigned_to = $2`,
@@ -218,12 +229,18 @@ func (h *KidHandler) SubmitTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
+	completedAt := req.CompletedAt
+	if completedAt == nil {
+		completedAt = &now
+	}
+
 	err = h.DB.QueryRow(
-		`UPDATE task_logs 
-		 SET status = 'submitted', submitted_at = $1 
-		 WHERE id = $2 AND assigned_to = $3 
+		`UPDATE task_logs
+		 SET status = 'submitted', submitted_at = $1, completed_at = $2,
+		     proof_image = COALESCE($3, proof_image)
+		 WHERE id = $4 AND assigned_to = $5
 		 RETURNING status`,
-		now, logID, claims.UserID,
+		now, completedAt, req.ProofImage, logID, claims.UserID,
 	).Scan(&currentStatus)
 
 	if err != nil {
@@ -235,5 +252,6 @@ func (h *KidHandler) SubmitTask(w http.ResponseWriter, r *http.Request) {
 		"message":      "Task submitted to parent for approval",
 		"status":       models.StatusSubmitted,
 		"submitted_at": now,
+		"completed_at": completedAt,
 	})
 }

@@ -561,8 +561,15 @@
     <div id="log-progress-alert"></div>
     <label>Units to add</label>
     <input type="number" id="log-units" value="1" min="1" />
+    <label>When did you complete this? <span style="color:var(--red)">*</span></label>
+    <input type="datetime-local" id="log-completed-at" />
     <label>Notes (optional)</label>
     <input type="text" id="log-notes" placeholder="Completed chapter 3..." />
+    <label>Screenshot / Proof (optional)</label>
+    <input type="file" id="log-proof" accept="image/*" style="margin-bottom:16px" />
+    <div id="log-proof-preview" style="display:none;margin-bottom:16px">
+      <img id="log-proof-img" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+    </div>
     <div class="modal-footer">
       <button class="btn outline" onclick="App.closeModal('modal-log-progress')">Cancel</button>
       <button class="btn gold" onclick="App.logProgress()">Log Progress ✓</button>
@@ -572,6 +579,23 @@
 
 <script>
 const API = '';
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    if (file.size > 3 * 1024 * 1024) return reject(new Error('Image must be under 3 MB'));
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function localDatetimeNow() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
 const state = {
   token: localStorage.getItem('es_token'),
@@ -864,7 +888,7 @@ const App = {
     el.innerHTML = r.data.map(l => `
       <div class="card">
         <div class="card-row">
-          <div>
+          <div style="flex:1">
             <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
               <h3>${l.task_title}</h3>
               <span class="badge gold">submitted</span>
@@ -873,9 +897,11 @@ const App = {
               👤 ${l.assigned_to_name} &nbsp;·&nbsp;
               💰 ${fmt$(l.reward_amount)}/unit × ${l.target_units} = <strong>${fmt$(l.reward_amount * l.target_units)}</strong>
             </div>
-            ${l.submitted_at ? `<div class="meta">Submitted ${fmtDate(l.submitted_at)}</div>` : ''}
+            ${l.completed_at ? `<div class="meta">✅ Completed: <strong>${new Date(l.completed_at).toLocaleString()}</strong></div>` : ''}
+            ${l.submitted_at ? `<div class="meta">📤 Submitted: ${fmtDate(l.submitted_at)}</div>` : ''}
+            ${l.proof_image  ? `<div style="margin-top:10px"><img src="${l.proof_image}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border)" /></div>` : ''}
           </div>
-          <div class="card-actions">
+          <div class="card-actions" style="align-self:flex-start">
             <button class="btn sm gold" onclick="App.reviewTask('${l.id}', true)">Approve</button>
             <button class="btn sm danger" onclick="App.reviewTask('${l.id}', false)">Reject</button>
           </div>
@@ -1010,19 +1036,46 @@ const App = {
   },
 
   openLogProgress(id, title) {
-    document.getElementById('log-progress-id').value     = id;
+    document.getElementById('log-progress-id').value = id;
     document.getElementById('log-progress-title').textContent = `Log Progress: ${title}`;
     document.getElementById('log-units').value = 1;
+    document.getElementById('log-completed-at').value = localDatetimeNow();
     document.getElementById('log-notes').value = '';
+    document.getElementById('log-proof').value = '';
+    document.getElementById('log-proof-preview').style.display = 'none';
     alert_('log-progress-alert', '');
+
+    // live preview
+    document.getElementById('log-proof').onchange = function() {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('log-proof-img').src = e.target.result;
+        document.getElementById('log-proof-preview').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    };
+
     this.openModal('modal-log-progress');
   },
 
   async logProgress() {
-    const id    = document.getElementById('log-progress-id').value;
-    const units = parseInt(document.getElementById('log-units').value) || 1;
-    const notes = document.getElementById('log-notes').value.trim() || null;
-    const r = await req('POST', `/api/v1/kid/tasks/${id}/log`, { units, notes });
+    const id          = document.getElementById('log-progress-id').value;
+    const units       = parseInt(document.getElementById('log-units').value) || 1;
+    const notes       = document.getElementById('log-notes').value.trim() || null;
+    const completedAt = document.getElementById('log-completed-at').value;
+    if (!completedAt) return alert_('log-progress-alert', 'Please enter when you completed this.');
+
+    let proof_image = null;
+    const file = document.getElementById('log-proof').files[0];
+    if (file) {
+      try { proof_image = await fileToBase64(file); }
+      catch(e) { return alert_('log-progress-alert', e.message); }
+    }
+
+    const body = { units, notes, completed_at: new Date(completedAt).toISOString(), proof_image };
+    const r = await req('POST', `/api/v1/kid/tasks/${id}/log`, body);
     if (!r) return;
     if (!r.ok) return alert_('log-progress-alert', r.data.error || 'Failed to log progress.');
     const msg = r.data.auto_submitted
@@ -1034,8 +1087,10 @@ const App = {
   },
 
   async submitTask(id) {
-    if (!confirm('Submit this task to your parent for approval?')) return;
-    const r = await req('POST', `/api/v1/kid/tasks/${id}/submit`);
+    const completedAt = prompt('When did you finish this task?\n(e.g. today, leave blank for now)');
+    if (completedAt === null) return; // cancelled
+    const ts = completedAt.trim() ? new Date(completedAt).toISOString() : new Date().toISOString();
+    const r = await req('POST', `/api/v1/kid/tasks/${id}/submit`, { completed_at: ts });
     if (!r) return;
     if (!r.ok) return alert(r.data.error || 'Submit failed.');
     await this.loadKidDash();
