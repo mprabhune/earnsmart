@@ -107,8 +107,8 @@ type ParentLoginRequest struct {
 }
 
 type KidLoginRequest struct {
-	KidID string `json:"kid_id"`
-	PIN   string `json:"pin"`
+	FullName string `json:"full_name"`
+	PIN      string `json:"pin"`
 }
 
 type AuthResponse struct {

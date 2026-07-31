@@ -371,8 +371,8 @@
         <h2>Kid Login ⭐</h2>
         <p class="sub">Enter your Kid ID and 4-digit PIN</p>
         <div id="kid-login-alert"></div>
-        <label>Kid ID <span style="font-weight:400;color:var(--muted)">(ask a parent)</span></label>
-        <input type="text" id="kl-id" placeholder="Paste your Kid ID here" />
+        <label>Your Name</label>
+        <input type="text" id="kl-name" placeholder="Alex" />
         <label>4-Digit PIN</label>
         <input type="password" id="kl-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
         <button class="btn gold" onclick="App.kidLogin()">Let's Go! 🚀</button>
@@ -681,12 +681,12 @@ const App = {
 
   // ── KID AUTH ────────────────────────────────────────────────
   async kidLogin() {
-    const kid_id = document.getElementById('kl-id').value.trim();
-    const pin    = document.getElementById('kl-pin').value.trim();
-    if (!kid_id || pin.length !== 4) return alert_('kid-login-alert', 'Enter your Kid ID and 4-digit PIN.');
-    const r = await req('POST', '/api/v1/auth/kid/login', { kid_id, pin });
+    const full_name = document.getElementById('kl-name').value.trim();
+    const pin       = document.getElementById('kl-pin').value.trim();
+    if (!full_name || pin.length !== 4) return alert_('kid-login-alert', 'Enter your name and 4-digit PIN.');
+    const r = await req('POST', '/api/v1/auth/kid/login', { full_name, pin });
     if (!r) return;
-    if (!r.ok) return alert_('kid-login-alert', r.data.error || 'Login failed. Check your ID and PIN.');
+    if (!r.ok) return alert_('kid-login-alert', r.data.error || 'Invalid name or PIN.');
     this.saveSession(r.data.token, 'kid', r.data.user, r.data.family);
     this.showKidDash();
   },
@@ -733,10 +733,6 @@ const App = {
               <span class="badge green">${fmt$(k.current_balance)}</span>
             </div>
             <div class="meta">Joined ${fmtDate(k.created_at)}</div>
-            <div class="kid-id-box" style="margin-top:10px">
-              <div class="label">Kid ID (for login)</div>
-              <div class="id">${k.id}</div>
-            </div>
           </div>
         </div>
       </div>

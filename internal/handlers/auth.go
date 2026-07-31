@@ -9,7 +9,6 @@ import (
 	"earnsmart/internal/middleware"
 	"earnsmart/internal/models"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -159,48 +158,51 @@ func (h *AuthHandler) KidLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.KidID == "" || req.PIN == "" {
-		RespondError(w, http.StatusBadRequest, "kid_id and pin are required")
+	if req.FullName == "" || req.PIN == "" {
+		RespondError(w, http.StatusBadRequest, "full_name and pin are required")
 		return
 	}
 
-	kidUUID, err := uuid.Parse(req.KidID)
+	// Fetch all kids with this name (names are not globally unique)
+	rows, err := h.DB.Query(
+		`SELECT id, family_id, full_name, role, pin_hash, current_balance, created_at
+		 FROM profiles WHERE full_name = $1 AND role = 'kid'`,
+		req.FullName,
+	)
 	if err != nil {
-		RespondError(w, http.StatusBadRequest, "Invalid kid_id format")
-		return
-	}
-
-	var profile models.Profile
-	var pinHash string
-	err = h.DB.QueryRow(
-		`SELECT id, family_id, full_name, role, pin_hash, current_balance, created_at 
-		 FROM profiles WHERE id = $1 AND role = 'kid'`,
-		kidUUID,
-	).Scan(&profile.ID, &profile.FamilyID, &profile.FullName, &profile.Role, &pinHash, &profile.CurrentBalance, &profile.CreatedAt)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			RespondError(w, http.StatusUnauthorized, "Kid profile not found")
-			return
-		}
 		RespondError(w, http.StatusInternalServerError, "Database error")
 		return
 	}
+	defer rows.Close()
 
-	if err := bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(req.PIN)); err != nil {
-		RespondError(w, http.StatusUnauthorized, "Invalid 4-digit PIN")
+	// Find the first kid whose PIN matches
+	var matched *models.Profile
+	for rows.Next() {
+		var p models.Profile
+		var pinHash string
+		if err := rows.Scan(&p.ID, &p.FamilyID, &p.FullName, &p.Role, &pinHash, &p.CurrentBalance, &p.CreatedAt); err != nil {
+			continue
+		}
+		if bcrypt.CompareHashAndPassword([]byte(pinHash), []byte(req.PIN)) == nil {
+			matched = &p
+			break
+		}
+	}
+
+	if matched == nil {
+		RespondError(w, http.StatusUnauthorized, "Invalid name or PIN")
 		return
 	}
 
 	var family models.Family
-	err = h.DB.QueryRow(`SELECT id, family_name, created_at FROM families WHERE id = $1`, profile.FamilyID).
+	err = h.DB.QueryRow(`SELECT id, family_name, created_at FROM families WHERE id = $1`, matched.FamilyID).
 		Scan(&family.ID, &family.FamilyName, &family.CreatedAt)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, "Failed to fetch family info")
 		return
 	}
 
-	token, err := middleware.GenerateToken(profile.ID, profile.FamilyID, models.RoleKid, h.Config.JWTSecret)
+	token, err := middleware.GenerateToken(matched.ID, matched.FamilyID, models.RoleKid, h.Config.JWTSecret)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, "Failed to generate token")
 		return
@@ -208,7 +210,7 @@ func (h *AuthHandler) KidLogin(w http.ResponseWriter, r *http.Request) {
 
 	RespondJSON(w, http.StatusOK, models.AuthResponse{
 		Token:  token,
-		User:   profile,
+		User:   *matched,
 		Family: family,
 	})
 }
