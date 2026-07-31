@@ -615,7 +615,7 @@ async function req(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { App.logout(); return null; }
+  if (res.status === 401 && state.token) { App.logout(); return null; }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -1121,11 +1121,14 @@ const App = {
   },
 
   // ── INIT ────────────────────────────────────────────────────
-  init() {
+  async init() {
     if (state.token && state.role === 'parent' && state.user) {
-      this.showParentDash();
+      // Verify token is still valid before restoring session
+      const r = await req('GET', '/api/v1/parent/kids');
+      if (r) { this.showParentDash(); } else { this.show('landing'); }
     } else if (state.token && state.role === 'kid' && state.user) {
-      this.showKidDash();
+      const r = await req('GET', '/api/v1/kid/dashboard');
+      if (r) { this.showKidDash(); } else { this.show('landing'); }
     } else {
       this.show('landing');
     }
