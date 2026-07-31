@@ -56,6 +56,12 @@ func main() {
 		_, _ = w.Write(web.ManifestJSON)
 	})
 
+	// Digital Asset Links (required for TWA — no browser bar)
+	r.Get("/.well-known/assetlinks.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(web.AssetLinksJSON)
+	})
+
 	// App Icons (generated green PNG for TWA)
 	icon192 := makeIcon(192)
 	icon512 := makeIcon(512)

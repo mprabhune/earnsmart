@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.earnsmart.app",
+    "sha256_cert_fingerprints": [
+      "7E:EF:83:D6:49:E6:C1:11:5D:F8:3B:F1:33:27:37:28:BE:55:9A:E4:4C:73:B7:A5:C6:96:A1:87:88:FC:CC:A8"
+    ]
+  }
+}]
