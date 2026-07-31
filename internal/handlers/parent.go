@@ -305,15 +305,17 @@ func (h *ParentHandler) ReviewTask(w http.ResponseWriter, r *http.Request) {
 
 	// Verify task_log belongs to this family and get details
 	var kidID uuid.UUID
-	var rewardAmount float64
+	var rewardPerUnit float64
+	var targetUnits int
 	var currentStatus models.TaskStatus
 	err = tx.QueryRow(
-		`SELECT tl.assigned_to, td.reward_amount, tl.status
+		`SELECT tl.assigned_to, td.reward_amount, td.target_units, tl.status
 		 FROM task_logs tl
 		 JOIN task_definitions td ON tl.task_definition_id = td.id
 		 WHERE tl.id = $1 AND td.family_id = $2`,
 		logID, claims.FamilyID,
-	).Scan(&kidID, &rewardAmount, &currentStatus)
+	).Scan(&kidID, &rewardPerUnit, &targetUnits, &currentStatus)
+	rewardAmount := rewardPerUnit * float64(targetUnits)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

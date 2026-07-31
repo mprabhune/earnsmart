@@ -516,8 +516,8 @@
         <input type="number" id="task-units" value="1" min="1" />
       </div>
     </div>
-    <label>Reward Amount ($)</label>
-    <input type="number" id="task-reward" placeholder="1.00" min="0" step="0.01" />
+    <label>Reward per Unit ($) <span style="font-weight:400;color:var(--muted)">e.g. $0.20/page</span></label>
+    <input type="number" id="task-reward" placeholder="0.20" min="0" step="0.01" />
     <label>Assign to (optional — leave blank for all kids)</label>
     <select id="task-assign-kid">
       <option value="">All Kids</option>
@@ -778,7 +778,7 @@ const App = {
               <h3>${t.title}</h3>
               <span class="badge ${t.is_active ? 'green' : 'gray'}">${t.is_active ? 'active' : 'inactive'}</span>
             </div>
-            <div class="meta">${t.task_type.replace('_',' ')} · ${fmt$(t.reward_amount)} · Target: ${t.target_units} unit${t.target_units > 1 ? 's' : ''}</div>
+            <div class="meta">${t.task_type.replace('_',' ')} · ${fmt$(t.reward_amount)}/unit × ${t.target_units} = ${fmt$(t.reward_amount * t.target_units)}</div>
             ${t.description ? `<div class="meta" style="margin-top:4px">${t.description}</div>` : ''}
           </div>
           <div class="card-actions">
@@ -871,8 +871,7 @@ const App = {
             </div>
             <div class="meta">
               👤 ${l.assigned_to_name} &nbsp;·&nbsp;
-              💰 ${fmt$(l.reward_amount)} &nbsp;·&nbsp;
-              Progress: ${l.current_progress_units}/${l.target_units}
+              💰 ${fmt$(l.reward_amount)}/unit × ${l.target_units} = <strong>${fmt$(l.reward_amount * l.target_units)}</strong>
             </div>
             ${l.submitted_at ? `<div class="meta">Submitted ${fmtDate(l.submitted_at)}</div>` : ''}
           </div>
@@ -974,7 +973,7 @@ const App = {
                 <h3>${t.task_title}</h3>
                 ${statusBadge(t.status)}
               </div>
-              <div class="meta">${t.task_type.replace('_',' ')} · Reward: ${fmt$(t.reward_amount)}</div>
+              <div class="meta">${t.task_type.replace('_',' ')} · ${fmt$(t.reward_amount)}/unit · Earn: ${fmt$(t.reward_amount * t.target_units)}</div>
             </div>
             <div class="card-actions">
               ${canLog ? `<button class="btn sm gold" onclick="App.openLogProgress('${t.id}','${t.task_title}')">+ Log</button>` : ''}
