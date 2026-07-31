@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"log"
 	"net/http"
 
@@ -50,6 +54,18 @@ func main() {
 	r.Get("/manifest.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/manifest+json")
 		_, _ = w.Write(web.ManifestJSON)
+	})
+
+	// App Icons (generated green PNG for TWA)
+	icon192 := makeIcon(192)
+	icon512 := makeIcon(512)
+	r.Get("/icon-192.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(icon192)
+	})
+	r.Get("/icon-512.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(icon512)
 	})
 
 	// Health Check
@@ -107,4 +123,18 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
+}
+
+// makeIcon generates a solid green PNG icon of the given size
+func makeIcon(size int) []byte {
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	green := color.RGBA{R: 26, G: 107, B: 60, A: 255} // #1a6b3c
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			img.Set(x, y, green)
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
 }
