@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -27,7 +28,7 @@ func (h *ParentHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	claims, _ := middleware.GetClaims(r.Context())
 
 	rows, err := h.DB.Query(
-		`SELECT id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, created_at, updated_at
+		`SELECT id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, due_date, created_at, updated_at
 		 FROM task_definitions
 		 WHERE family_id = $1
 		 ORDER BY created_at DESC`,
@@ -44,7 +45,7 @@ func (h *ParentHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		var t models.TaskDefinition
 		if err := rows.Scan(
 			&t.ID, &t.FamilyID, &t.CreatedBy, &t.Title, &t.Description, &t.TaskType,
-			&t.RewardAmount, &t.TargetUnits, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
+			&t.RewardAmount, &t.TargetUnits, &t.IsActive, &t.DueDate, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
 			RespondError(w, http.StatusInternalServerError, "Error scanning tasks")
 			return
@@ -91,13 +92,13 @@ func (h *ParentHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	var taskDef models.TaskDefinition
 	err = tx.QueryRow(
-		`INSERT INTO task_definitions (family_id, created_by, title, description, task_type, reward_amount, target_units, is_active)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-		 RETURNING id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, created_at, updated_at`,
-		claims.FamilyID, claims.UserID, req.Title, desc, req.TaskType, req.RewardAmount, req.TargetUnits,
+		`INSERT INTO task_definitions (family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, due_date)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
+		 RETURNING id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, due_date, created_at, updated_at`,
+		claims.FamilyID, claims.UserID, req.Title, desc, req.TaskType, req.RewardAmount, req.TargetUnits, req.DueDate,
 	).Scan(
 		&taskDef.ID, &taskDef.FamilyID, &taskDef.CreatedBy, &taskDef.Title, &taskDef.Description,
-		&taskDef.TaskType, &taskDef.RewardAmount, &taskDef.TargetUnits, &taskDef.IsActive,
+		&taskDef.TaskType, &taskDef.RewardAmount, &taskDef.TargetUnits, &taskDef.IsActive, &taskDef.DueDate,
 		&taskDef.CreatedAt, &taskDef.UpdatedAt,
 	)
 	if err != nil {
@@ -199,12 +200,16 @@ func (h *ParentHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		taskDef.IsActive = *req.IsActive
 	}
 
+	if req.DueDate != nil {
+		taskDef.DueDate = req.DueDate
+	}
+
 	err = h.DB.QueryRow(
-		`UPDATE task_definitions 
-		 SET title = $1, description = $2, task_type = $3, reward_amount = $4, target_units = $5, is_active = $6, updated_at = NOW()
-		 WHERE id = $7 AND family_id = $8
+		`UPDATE task_definitions
+		 SET title = $1, description = $2, task_type = $3, reward_amount = $4, target_units = $5, is_active = $6, due_date = $7, updated_at = NOW()
+		 WHERE id = $8 AND family_id = $9
 		 RETURNING updated_at`,
-		taskDef.Title, taskDef.Description, taskDef.TaskType, taskDef.RewardAmount, taskDef.TargetUnits, taskDef.IsActive, taskDef.ID, claims.FamilyID,
+		taskDef.Title, taskDef.Description, taskDef.TaskType, taskDef.RewardAmount, taskDef.TargetUnits, taskDef.IsActive, taskDef.DueDate, taskDef.ID, claims.FamilyID,
 	).Scan(&taskDef.UpdatedAt)
 
 	if err != nil {
@@ -486,6 +491,111 @@ func (h *ParentHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondJSON(w, http.StatusOK, summaries)
+}
+
+// GET /api/v1/parent/kids/{id}/tasks?from=&to=
+func (h *ParentHandler) GetKidTasks(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	kidID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid kid ID")
+		return
+	}
+
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+
+	query := `
+		SELECT tl.id, tl.task_definition_id, tl.assigned_to, tl.status, tl.current_progress_units,
+		       tl.notes, tl.completed_at, tl.proof_image, tl.submitted_at, tl.reviewed_at, tl.created_at,
+		       td.title, td.description, td.task_type, td.reward_amount, td.target_units, td.due_date,
+		       p.full_name
+		FROM task_logs tl
+		JOIN task_definitions td ON tl.task_definition_id = td.id
+		JOIN profiles p ON tl.assigned_to = p.id
+		WHERE tl.assigned_to = $1 AND td.family_id = $2`
+
+	args := []interface{}{kidID, claims.FamilyID}
+
+	if from != "" {
+		args = append(args, from)
+		query += fmt.Sprintf(" AND tl.created_at >= $%d::date", len(args))
+	}
+	if to != "" {
+		args = append(args, to)
+		query += fmt.Sprintf(" AND tl.created_at < ($%d::date + interval '1 day')", len(args))
+	}
+
+	query += " ORDER BY tl.created_at DESC"
+
+	rows, err := h.DB.Query(query, args...)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to query kid tasks: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	logs := []models.TaskLog{}
+	for rows.Next() {
+		var l models.TaskLog
+		var dueDate *time.Time
+		if err := rows.Scan(
+			&l.ID, &l.TaskDefinitionID, &l.AssignedTo, &l.Status, &l.CurrentProgressUnits,
+			&l.Notes, &l.CompletedAt, &l.ProofImage, &l.SubmittedAt, &l.ReviewedAt, &l.CreatedAt,
+			&l.TaskTitle, &l.TaskDescription, &l.TaskType, &l.RewardAmount, &l.TargetUnits, &dueDate,
+			&l.AssignedToName,
+		); err != nil {
+			RespondError(w, http.StatusInternalServerError, "Error scanning tasks")
+			return
+		}
+		_ = dueDate // available in TaskDefinition; TaskLog carries it via join
+		logs = append(logs, l)
+	}
+
+	RespondJSON(w, http.StatusOK, logs)
+}
+
+// GET /api/v1/parent/notifications — tasks pending > 24 hours
+func (h *ParentHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	rows, err := h.DB.Query(
+		`SELECT tl.id, td.title, p.full_name, tl.created_at, td.due_date
+		 FROM task_logs tl
+		 JOIN task_definitions td ON tl.task_definition_id = td.id
+		 JOIN profiles p ON tl.assigned_to = p.id
+		 WHERE td.family_id = $1
+		   AND tl.status IN ('pending', 'in_progress')
+		   AND tl.created_at < NOW() - INTERVAL '24 hours'
+		 ORDER BY tl.created_at ASC`,
+		claims.FamilyID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to query notifications")
+		return
+	}
+	defer rows.Close()
+
+	type Notification struct {
+		TaskLogID   string     `json:"task_log_id"`
+		TaskTitle   string     `json:"task_title"`
+		KidName     string     `json:"kid_name"`
+		PendingSince time.Time `json:"pending_since"`
+		DueDate     *time.Time `json:"due_date,omitempty"`
+		Overdue     bool       `json:"overdue"`
+	}
+
+	notes := []Notification{}
+	for rows.Next() {
+		var n Notification
+		if err := rows.Scan(&n.TaskLogID, &n.TaskTitle, &n.KidName, &n.PendingSince, &n.DueDate); err != nil {
+			continue
+		}
+		n.Overdue = n.DueDate != nil && time.Now().After(*n.DueDate)
+		notes = append(notes, n)
+	}
+
+	RespondJSON(w, http.StatusOK, notes)
 }
 
 // POST /api/v1/parent/payout

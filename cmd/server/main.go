@@ -114,7 +114,9 @@ func main() {
 			r.Get("/summary", parentHandler.GetSummary)
 			r.Get("/kids", parentHandler.GetKids)
 			r.Post("/kids", parentHandler.CreateKid)
+			r.Get("/kids/{id}/tasks", parentHandler.GetKidTasks)
 			r.Post("/payout", parentHandler.ProcessPayout)
+			r.Get("/notifications", parentHandler.GetNotifications)
 		})
 
 		// Kid Endpoints

@@ -58,6 +58,7 @@ type TaskDefinition struct {
 	RewardAmount float64    `json:"reward_amount"`
 	TargetUnits  int        `json:"target_units"`
 	IsActive     bool       `json:"is_active"`
+	DueDate      *time.Time `json:"due_date,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
@@ -138,21 +139,23 @@ type CreateKidRequest struct {
 }
 
 type CreateTaskRequest struct {
-	Title        string   `json:"title"`
-	Description  string   `json:"description"`
-	TaskType     TaskType `json:"task_type"`
-	RewardAmount float64  `json:"reward_amount"`
-	TargetUnits  int      `json:"target_units"`
-	AssignToKid  *string  `json:"assign_to_kid,omitempty"` // If set, auto-creates task_log
+	Title        string     `json:"title"`
+	Description  string     `json:"description"`
+	TaskType     TaskType   `json:"task_type"`
+	RewardAmount float64    `json:"reward_amount"`
+	TargetUnits  int        `json:"target_units"`
+	DueDate      *time.Time `json:"due_date,omitempty"`
+	AssignToKid  *string    `json:"assign_to_kid,omitempty"`
 }
 
 type UpdateTaskRequest struct {
-	Title        *string   `json:"title"`
-	Description  *string   `json:"description"`
-	TaskType     *TaskType `json:"task_type"`
-	RewardAmount *float64  `json:"reward_amount"`
-	TargetUnits  *int      `json:"target_units"`
-	IsActive     *bool     `json:"is_active"`
+	Title        *string    `json:"title"`
+	Description  *string    `json:"description"`
+	TaskType     *TaskType  `json:"task_type"`
+	RewardAmount *float64   `json:"reward_amount"`
+	TargetUnits  *int       `json:"target_units"`
+	IsActive     *bool      `json:"is_active"`
+	DueDate      *time.Time `json:"due_date,omitempty"`
 }
 
 type ReviewTaskRequest struct {

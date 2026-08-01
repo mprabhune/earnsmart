@@ -437,9 +437,11 @@
     <button class="logout" onclick="App.logout()">Sign Out</button>
   </nav>
   <div class="dash-wrap">
+    <!-- Notification banner -->
+    <div id="notif-banner" style="display:none" class="alert error" style="margin-bottom:16px"></div>
+
     <div class="dash-tabs">
       <button class="dash-tab active" onclick="App.parentTab('kids')">👨‍👧 Kids</button>
-      <button class="dash-tab" onclick="App.parentTab('tasks')">📋 Tasks</button>
       <button class="dash-tab" onclick="App.parentTab('approvals')">✅ Approvals</button>
       <button class="dash-tab" onclick="App.parentTab('summary')">📊 Summary</button>
       <button class="dash-tab" onclick="App.parentTab('payout')">💸 Payout</button>
@@ -447,20 +449,46 @@
 
     <!-- Kids Tab -->
     <div id="parent-panel-kids" class="dash-panel active">
-      <div class="section-header">
-        <h2>Kids</h2>
-        <button class="btn sm gold" onclick="App.openModal('modal-add-kid')">+ Add Kid</button>
+      <!-- Kids list view -->
+      <div id="kids-list-view">
+        <div class="section-header">
+          <h2>Kids</h2>
+          <button class="btn sm gold" onclick="App.openModal('modal-add-kid')">+ Add Kid</button>
+        </div>
+        <div id="kids-list"></div>
       </div>
-      <div id="kids-list"></div>
-    </div>
 
-    <!-- Tasks Tab -->
-    <div id="parent-panel-tasks" class="dash-panel">
-      <div class="section-header">
-        <h2>Task Definitions</h2>
-        <button class="btn sm gold" onclick="App.openModal('modal-add-task')">+ New Task</button>
+      <!-- Kid detail view (hidden by default) -->
+      <div id="kid-detail-view" style="display:none">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn sm outline" onclick="App.showKidsList()">← Back</button>
+            <div>
+              <h2 id="kid-detail-name"></h2>
+              <div class="meta" id="kid-detail-balance"></div>
+            </div>
+          </div>
+          <button class="btn sm gold" onclick="App.openAddTaskForKid()">+ Assign Task</button>
+        </div>
+
+        <!-- Date filter -->
+        <div class="card" style="padding:14px 20px;margin-bottom:16px">
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <div>
+              <label style="margin-bottom:4px">From</label>
+              <input type="date" id="filter-from" style="margin:0;width:auto" />
+            </div>
+            <div>
+              <label style="margin-bottom:4px">To</label>
+              <input type="date" id="filter-to" style="margin:0;width:auto" />
+            </div>
+            <button class="btn sm" onclick="App.loadKidTasks()">Filter</button>
+            <button class="btn sm outline" onclick="App.clearDateFilter()">Clear</button>
+          </div>
+        </div>
+
+        <div id="kid-tasks-parent-list"></div>
       </div>
-      <div id="tasks-list"></div>
     </div>
 
     <!-- Approvals Tab -->
@@ -566,6 +594,8 @@
     </div>
     <label>Reward per Unit ($) <span style="font-weight:400;color:var(--muted)">e.g. $0.20/page</span></label>
     <input type="number" id="task-reward" placeholder="0.20" min="0" step="0.01" />
+    <label>Due Date <span style="font-weight:400;color:var(--muted)">(optional deadline)</span></label>
+    <input type="date" id="task-due-date" style="margin-bottom:16px" />
     <label>Assign to (optional — leave blank for all kids)</label>
     <select id="task-assign-kid">
       <option value="">All Kids</option>
@@ -585,10 +615,12 @@
     <div id="edit-task-alert"></div>
     <label>Title</label>
     <input type="text" id="edit-task-title" />
-    <label>Reward Amount ($)</label>
+    <label>Reward per Unit ($)</label>
     <input type="number" id="edit-task-reward" min="0" step="0.01" />
     <label>Target Units</label>
     <input type="number" id="edit-task-units" min="1" />
+    <label>Due Date</label>
+    <input type="date" id="edit-task-due-date" style="margin-bottom:16px" />
     <label>Active</label>
     <select id="edit-task-active">
       <option value="true">Active</option>
@@ -821,6 +853,7 @@ const App = {
     this.show('parent-dash');
     await this.loadKids();
     await this.loadTasks();
+    this.loadNotifications();
   },
 
   parentTab(name) {
@@ -831,6 +864,110 @@ const App = {
     if (name === 'approvals') this.loadApprovals();
     if (name === 'summary')   this.loadSummary();
     if (name === 'payout')    this.renderPayoutKids();
+    if (name === 'kids')      this.showKidsList();
+  },
+
+  // ── KID DETAIL VIEW ─────────────────────────────────────────
+  _selectedKid: null,
+
+  showKidsList() {
+    document.getElementById('kids-list-view').style.display = '';
+    document.getElementById('kid-detail-view').style.display = 'none';
+    this._selectedKid = null;
+  },
+
+  openKidDetail(kid) {
+    this._selectedKid = kid;
+    document.getElementById('kids-list-view').style.display = 'none';
+    document.getElementById('kid-detail-view').style.display = '';
+    document.getElementById('kid-detail-name').textContent = kid.full_name;
+    document.getElementById('kid-detail-balance').textContent = 'Balance: ' + fmt$(kid.current_balance);
+    document.getElementById('filter-from').value = '';
+    document.getElementById('filter-to').value = '';
+    this.loadKidTasks();
+  },
+
+  async loadKidTasks() {
+    if (!this._selectedKid) return;
+    const from = document.getElementById('filter-from').value;
+    const to   = document.getElementById('filter-to').value;
+    let url = `/api/v1/parent/kids/${this._selectedKid.id}/tasks`;
+    const params = [];
+    if (from) params.push('from=' + from);
+    if (to)   params.push('to=' + to);
+    if (params.length) url += '?' + params.join('&');
+
+    const r = await req('GET', url);
+    if (!r || !r.ok) return;
+    this.renderKidTasksParent(r.data);
+  },
+
+  clearDateFilter() {
+    document.getElementById('filter-from').value = '';
+    document.getElementById('filter-to').value = '';
+    this.loadKidTasks();
+  },
+
+  renderKidTasksParent(tasks) {
+    const el = document.getElementById('kid-tasks-parent-list');
+    if (!tasks.length) {
+      el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No tasks found for this date range.</p></div>`;
+      return;
+    }
+    const now = new Date();
+    el.innerHTML = tasks.map(t => {
+      const pct = Math.min(100, Math.round((t.current_progress_units / (t.target_units || 1)) * 100));
+      const isOverdue = t.due_date && new Date(t.due_date) < now && t.status !== 'approved';
+      return `
+        <div class="card" style="${isOverdue ? 'border-left:3px solid var(--red)' : ''}">
+          <div class="card-row">
+            <div style="flex:1">
+              <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+                <h3>${t.task_title}</h3>
+                ${statusBadge(t.status)}
+                ${isOverdue ? '<span class="badge red">Overdue</span>' : ''}
+              </div>
+              <div class="meta">${fmt$(t.reward_amount)}/unit × ${t.target_units} = ${fmt$(t.reward_amount * t.target_units)}</div>
+              ${t.due_date ? `<div class="meta" style="color:${isOverdue ? 'var(--red)' : 'var(--muted)'}">📅 Due: ${fmtDate(t.due_date)}</div>` : ''}
+              ${t.completed_at ? `<div class="meta">✅ Completed: ${new Date(t.completed_at).toLocaleString()}</div>` : ''}
+              ${t.target_units > 1 ? `
+                <div style="margin-top:8px">
+                  <div class="meta" style="margin-bottom:4px">${t.current_progress_units}/${t.target_units} units</div>
+                  <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+                </div>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  openAddTaskForKid() {
+    if (this._selectedKid) {
+      const sel = document.getElementById('task-assign-kid');
+      sel.innerHTML = '<option value="">All Kids</option>' +
+        state.kids.map(k => `<option value="${k.id}" ${k.id === this._selectedKid.id ? 'selected' : ''}>${k.full_name}</option>`).join('');
+    }
+    alert_('add-task-alert', '');
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-desc').value = '';
+    document.getElementById('task-reward').value = '';
+    document.getElementById('task-due-date').value = '';
+    this.openModal('modal-add-task');
+  },
+
+  // ── NOTIFICATIONS ────────────────────────────────────────────
+  async loadNotifications() {
+    const r = await req('GET', '/api/v1/parent/notifications');
+    if (!r || !r.ok) return;
+    const banner = document.getElementById('notif-banner');
+    if (!r.data.length) { banner.style.display = 'none'; return; }
+    const overdue = r.data.filter(n => n.overdue);
+    const pending = r.data.filter(n => !n.overdue);
+    let msg = '';
+    if (overdue.length) msg += `⚠️ ${overdue.length} overdue task${overdue.length > 1 ? 's' : ''}: ${overdue.map(n => `${n.kid_name} — ${n.task_title}`).join(', ')}. `;
+    if (pending.length) msg += `⏰ ${pending.length} task${pending.length > 1 ? 's' : ''} pending for 24+ hours: ${pending.map(n => `${n.kid_name} — ${n.task_title}`).join(', ')}.`;
+    banner.textContent = msg;
+    banner.style.display = '';
   },
 
   // Kids
@@ -847,15 +984,15 @@ const App = {
       el.innerHTML = `<div class="empty"><div class="icon">👧</div><p>No kids yet. Add your first kid!</p></div>`;
       return;
     }
-    el.innerHTML = state.kids.map(k => `
-      <div class="card">
+    el.innerHTML = state.kids.map((k, i) => `
+      <div class="card" style="cursor:pointer" onclick="App.openKidDetail(state.kids[${i}])">
         <div class="card-row">
           <div>
-            <div class="card-row" style="gap:8px;justify-content:flex-start">
-              <h3>${k.full_name}</h3>
+            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+              <h3 style="color:var(--green)">${k.full_name}</h3>
               <span class="badge green">${fmt$(k.current_balance)}</span>
             </div>
-            <div class="meta">Joined ${fmtDate(k.created_at)}</div>
+            <div class="meta">Joined ${fmtDate(k.created_at)} · Tap to view tasks →</div>
           </div>
         </div>
       </div>
@@ -921,9 +1058,11 @@ const App = {
     const reward_amount = parseFloat(document.getElementById('task-reward').value) || 0;
     const assign_to_kid = document.getElementById('task-assign-kid').value || null;
 
+    const due_date_val = document.getElementById('task-due-date').value;
     if (!title) return alert_('add-task-alert', 'Title is required.');
     const body = { title, description, task_type, target_units, reward_amount };
     if (assign_to_kid) body.assign_to_kid = assign_to_kid;
+    if (due_date_val) body.due_date = new Date(due_date_val).toISOString();
 
     const r = await req('POST', '/api/v1/parent/tasks', body);
     if (!r) return;
@@ -939,11 +1078,13 @@ const App = {
   openEditTask(id) {
     const t = state.tasks.find(x => x.id === id);
     if (!t) return;
-    document.getElementById('edit-task-id').value     = t.id;
-    document.getElementById('edit-task-title').value  = t.title;
-    document.getElementById('edit-task-reward').value = t.reward_amount;
-    document.getElementById('edit-task-units').value  = t.target_units;
-    document.getElementById('edit-task-active').value = String(t.is_active);
+    document.getElementById('edit-task-id').value       = t.id;
+    document.getElementById('edit-task-title').value    = t.title;
+    document.getElementById('edit-task-reward').value   = t.reward_amount;
+    document.getElementById('edit-task-units').value    = t.target_units;
+    document.getElementById('edit-task-active').value   = String(t.is_active);
+    document.getElementById('edit-task-due-date').value = t.due_date
+      ? new Date(t.due_date).toISOString().slice(0, 16) : '';
     alert_('edit-task-alert', '');
     this.openModal('modal-edit-task');
   },
@@ -953,8 +1094,11 @@ const App = {
     const title         = document.getElementById('edit-task-title').value.trim();
     const reward_amount = parseFloat(document.getElementById('edit-task-reward').value);
     const target_units  = parseInt(document.getElementById('edit-task-units').value);
-    const is_active     = document.getElementById('edit-task-active').value === 'true';
-    const r = await req('PUT', `/api/v1/parent/tasks/${id}`, { title, reward_amount, target_units, is_active });
+    const is_active       = document.getElementById('edit-task-active').value === 'true';
+    const edit_due_val    = document.getElementById('edit-task-due-date').value;
+    const body            = { title, reward_amount, target_units, is_active };
+    if (edit_due_val) body.due_date = new Date(edit_due_val).toISOString();
+    const r = await req('PUT', `/api/v1/parent/tasks/${id}`, body);
     if (!r) return;
     if (!r.ok) return alert_('edit-task-alert', r.data.error || 'Update failed.');
     this.closeModal('modal-edit-task');

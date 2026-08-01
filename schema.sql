@@ -87,6 +87,9 @@ CREATE INDEX IF NOT EXISTS idx_profiles_family ON profiles(family_id);
 CREATE INDEX IF NOT EXISTS idx_task_logs_assigned_status ON task_logs(assigned_to, status);
 CREATE INDEX IF NOT EXISTS idx_ledger_kid ON ledger(kid_id);
 
+-- Add due date to task definitions
+ALTER TABLE task_definitions ADD COLUMN IF NOT EXISTS due_date TIMESTAMP WITH TIME ZONE;
+
 -- Add proof fields to task_logs (safe to run multiple times)
 ALTER TABLE task_logs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE task_logs ADD COLUMN IF NOT EXISTS proof_image TEXT;
