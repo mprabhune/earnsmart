@@ -117,6 +117,9 @@ func main() {
 			r.Get("/kids/{id}/tasks", parentHandler.GetKidTasks)
 			r.Post("/payout", parentHandler.ProcessPayout)
 			r.Get("/notifications", parentHandler.GetNotifications)
+
+			r.Patch("/profile/avatar", parentHandler.UpdateAvatar)
+			r.Patch("/kids/{id}/avatar", parentHandler.UpdateKidAvatar)
 		})
 
 		// Kid Endpoints
@@ -124,6 +127,7 @@ func main() {
 			r.Use(middleware.RequireRole("kid"))
 
 			r.Get("/dashboard", kidHandler.GetDashboard)
+			r.Patch("/profile/avatar", kidHandler.UpdateAvatar)
 			r.Post("/tasks/{id}/log", kidHandler.LogProgress)
 			r.Post("/tasks/{id}/submit", kidHandler.SubmitTask)
 		})

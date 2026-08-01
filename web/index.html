@@ -300,6 +300,32 @@
     .ledger-row .amt { font-weight: 700; }
     .ledger-row .amt.earned { color: var(--green); }
     .ledger-row .amt.payout { color: var(--red); }
+
+    /* ── AVATAR ── */
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      object-fit: cover; border: 2px solid rgba(255,255,255,0.4);
+      cursor: pointer; flex-shrink: 0;
+    }
+    .avatar-initials {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .9rem; color: #fff;
+      cursor: pointer; flex-shrink: 0; user-select: none;
+    }
+    .avatar-lg {
+      width: 56px; height: 56px; border-radius: 50%;
+      object-fit: cover; border: 2px solid var(--border);
+      cursor: pointer; flex-shrink: 0;
+    }
+    .avatar-initials-lg {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--green); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.2rem;
+      cursor: pointer; flex-shrink: 0; user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -433,9 +459,11 @@
 <div id="screen-parent-dash" class="screen">
   <nav>
     <span class="logo">Earn<span>Smart</span></span>
-    <span id="parent-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem"></span>
+    <span id="parent-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem;flex:1;margin:0 12px"></span>
+    <div id="parent-nav-avatar" onclick="App.openAvatarUpload('parent')" title="Change profile photo" style="margin-right:10px"></div>
     <button class="logout" onclick="App.logout()">Sign Out</button>
   </nav>
+  <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="App.handleAvatarFile(event)" />
   <div class="dash-wrap">
     <!-- Notification banner -->
     <div id="notif-banner" style="display:none" class="alert error" style="margin-bottom:16px"></div>
@@ -463,6 +491,7 @@
         <div class="section-header">
           <div style="display:flex;align-items:center;gap:12px">
             <button class="btn sm outline" onclick="App.showKidsList()">← Back</button>
+            <div id="kid-detail-avatar" onclick="App.openAvatarUpload('kid-from-parent')" title="Change kid photo" style="cursor:pointer"></div>
             <div>
               <h2 id="kid-detail-name"></h2>
               <div class="meta" id="kid-detail-balance"></div>
@@ -522,7 +551,8 @@
 <div id="screen-kid-dash" class="screen">
   <nav>
     <span class="logo">Earn<span>Smart</span></span>
-    <span id="kid-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem"></span>
+    <span id="kid-nav-name" style="color:rgba(255,255,255,.7);font-size:.9rem;flex:1;margin:0 12px"></span>
+    <div id="kid-nav-avatar" onclick="App.openAvatarUpload('kid')" title="Change profile photo" style="margin-right:10px"></div>
     <button class="logout" onclick="App.logout()">Sign Out</button>
   </nav>
   <div class="dash-wrap">
@@ -660,13 +690,28 @@
 <script>
 const API = '';
 
-function fileToBase64(file) {
+function fileToBase64(file, maxPx) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null);
     if (file.size > 3 * 1024 * 1024) return reject(new Error('Image must be under 3 MB'));
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
+    reader.onload = (e) => {
+      if (!maxPx) return resolve(e.target.result);
+      // Resize via canvas for avatars
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -851,6 +896,7 @@ const App = {
     document.getElementById('parent-nav-name').textContent =
       `${state.user.full_name} · ${state.family.family_name}`;
     this.show('parent-dash');
+    this.renderParentAvatar();
     await this.loadKids();
     await this.loadTasks();
     this.loadNotifications();
@@ -884,6 +930,7 @@ const App = {
     document.getElementById('kid-detail-balance').textContent = 'Balance: ' + fmt$(kid.current_balance);
     document.getElementById('filter-from').value = '';
     document.getElementById('filter-to').value = '';
+    this.renderKidDetailAvatar(kid);
     this.loadKidTasks();
   },
 
@@ -987,12 +1034,17 @@ const App = {
     el.innerHTML = state.kids.map((k, i) => `
       <div class="card" style="cursor:pointer" onclick="App.openKidDetail(state.kids[${i}])">
         <div class="card-row">
-          <div>
-            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
-              <h3 style="color:var(--green)">${k.full_name}</h3>
-              <span class="badge green">${fmt$(k.current_balance)}</span>
+          <div style="display:flex;align-items:center;gap:14px">
+            ${k.avatar
+              ? `<img src="${k.avatar}" class="avatar-initials-lg" style="object-fit:cover;border:2px solid var(--border)" />`
+              : `<div class="avatar-initials-lg">${k.full_name.charAt(0).toUpperCase()}</div>`}
+            <div>
+              <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+                <h3 style="color:var(--green)">${k.full_name}</h3>
+                <span class="badge green">${fmt$(k.current_balance)}</span>
+              </div>
+              <div class="meta">Joined ${fmtDate(k.created_at)} · Tap to view tasks →</div>
             </div>
-            <div class="meta">Joined ${fmtDate(k.created_at)} · Tap to view tasks →</div>
           </div>
         </div>
       </div>
@@ -1205,6 +1257,7 @@ const App = {
   async showKidDash() {
     document.getElementById('kid-nav-name').textContent = state.user.full_name;
     this.show('kid-dash');
+    this.renderKidAvatar();
     await this.loadKidDash();
   },
 
@@ -1212,6 +1265,12 @@ const App = {
     const r = await req('GET', '/api/v1/kid/dashboard');
     if (!r || !r.ok) return;
     const { kid, tasks, ledger_history } = r.data;
+    // Sync avatar from server (may have been updated by parent)
+    if (kid.avatar !== undefined) {
+      state.user.avatar = kid.avatar;
+      localStorage.setItem('es_user', JSON.stringify(state.user));
+      this.renderKidAvatar();
+    }
     document.getElementById('kid-balance').textContent = parseFloat(kid.current_balance).toFixed(2);
     this.renderKidTasks(tasks);
     this.renderKidLedger(ledger_history);
@@ -1361,6 +1420,86 @@ const App = {
 
   closeModalOutside(e, id) {
     if (e.target.id === id) this.closeModal(id);
+  },
+
+  // ── AVATARS ─────────────────────────────────────────────────
+  _avatarTarget: null, // 'parent' | 'kid' | 'kid-from-parent'
+
+  openAvatarUpload(target) {
+    this._avatarTarget = target;
+    const input = document.getElementById('avatar-file-input');
+    input.value = '';
+    input.click();
+  },
+
+  async handleAvatarFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    let dataUrl;
+    try { dataUrl = await fileToBase64(file, 200); }
+    catch(e) { return alert(e.message); }
+
+    const target = this._avatarTarget;
+    let url;
+    if (target === 'parent') {
+      url = '/api/v1/parent/profile/avatar';
+    } else if (target === 'kid') {
+      url = '/api/v1/kid/profile/avatar';
+    } else if (target === 'kid-from-parent' && this._selectedKid) {
+      url = `/api/v1/parent/kids/${this._selectedKid.id}/avatar`;
+    } else return;
+
+    const r = await req('PATCH', url, { avatar: dataUrl });
+    if (!r || !r.ok) return alert('Failed to update avatar.');
+
+    // Update state and UI
+    if (target === 'parent') {
+      state.user.avatar = dataUrl;
+      localStorage.setItem('es_user', JSON.stringify(state.user));
+      this.renderParentAvatar();
+    } else if (target === 'kid') {
+      state.user.avatar = dataUrl;
+      localStorage.setItem('es_user', JSON.stringify(state.user));
+      this.renderKidAvatar();
+    } else if (target === 'kid-from-parent') {
+      this._selectedKid.avatar = dataUrl;
+      const idx = state.kids.findIndex(k => k.id === this._selectedKid.id);
+      if (idx !== -1) state.kids[idx].avatar = dataUrl;
+      this.renderKidDetailAvatar(this._selectedKid);
+      this.renderKids();
+    }
+  },
+
+  renderParentAvatar() {
+    const el = document.getElementById('parent-nav-avatar');
+    if (!el) return;
+    const u = state.user;
+    if (u && u.avatar) {
+      el.innerHTML = `<img src="${u.avatar}" class="avatar" title="Change photo" />`;
+    } else if (u) {
+      el.innerHTML = `<div class="avatar-initials">${u.full_name.charAt(0).toUpperCase()}</div>`;
+    }
+  },
+
+  renderKidAvatar() {
+    const el = document.getElementById('kid-nav-avatar');
+    if (!el) return;
+    const u = state.user;
+    if (u && u.avatar) {
+      el.innerHTML = `<img src="${u.avatar}" class="avatar" title="Change photo" />`;
+    } else if (u) {
+      el.innerHTML = `<div class="avatar-initials">${u.full_name.charAt(0).toUpperCase()}</div>`;
+    }
+  },
+
+  renderKidDetailAvatar(kid) {
+    const el = document.getElementById('kid-detail-avatar');
+    if (!el) return;
+    if (kid.avatar) {
+      el.innerHTML = `<img src="${kid.avatar}" class="avatar-initials-lg" style="object-fit:cover;border:2px solid var(--border)" title="Change kid photo" />`;
+    } else {
+      el.innerHTML = `<div class="avatar-initials-lg">${kid.full_name.charAt(0).toUpperCase()}</div>`;
+    }
   },
 
   // ── INIT ────────────────────────────────────────────────────

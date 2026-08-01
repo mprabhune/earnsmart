@@ -391,7 +391,7 @@ func (h *ParentHandler) GetKids(w http.ResponseWriter, r *http.Request) {
 	claims, _ := middleware.GetClaims(r.Context())
 
 	rows, err := h.DB.Query(
-		`SELECT id, family_id, full_name, role, current_balance, created_at
+		`SELECT id, family_id, full_name, role, current_balance, avatar, created_at
 		 FROM profiles WHERE family_id = $1 AND role = 'kid'
 		 ORDER BY full_name ASC`,
 		claims.FamilyID,
@@ -405,7 +405,7 @@ func (h *ParentHandler) GetKids(w http.ResponseWriter, r *http.Request) {
 	kids := []models.Profile{}
 	for rows.Next() {
 		var p models.Profile
-		if err := rows.Scan(&p.ID, &p.FamilyID, &p.FullName, &p.Role, &p.CurrentBalance, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.FamilyID, &p.FullName, &p.Role, &p.CurrentBalance, &p.Avatar, &p.CreatedAt); err != nil {
 			RespondError(w, http.StatusInternalServerError, "Error scanning kid profiles")
 			return
 		}
@@ -676,4 +676,57 @@ func (h *ParentHandler) ProcessPayout(w http.ResponseWriter, r *http.Request) {
 		"message":     "Payout recorded successfully",
 		"new_balance": currentBalance - req.Amount,
 	})
+}
+
+// PATCH /api/v1/parent/profile/avatar
+func (h *ParentHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	var req models.UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Avatar == "" {
+		RespondError(w, http.StatusBadRequest, "avatar field is required")
+		return
+	}
+
+	_, err := h.DB.Exec(
+		`UPDATE profiles SET avatar = $1 WHERE id = $2`,
+		req.Avatar, claims.UserID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to update avatar")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]string{"message": "Avatar updated"})
+}
+
+// PATCH /api/v1/parent/kids/{id}/avatar
+func (h *ParentHandler) UpdateKidAvatar(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	kidID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid kid ID")
+		return
+	}
+
+	var req models.UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Avatar == "" {
+		RespondError(w, http.StatusBadRequest, "avatar field is required")
+		return
+	}
+
+	res, err := h.DB.Exec(
+		`UPDATE profiles SET avatar = $1 WHERE id = $2 AND family_id = $3 AND role = 'kid'`,
+		req.Avatar, kidID, claims.FamilyID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to update kid avatar")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		RespondError(w, http.StatusNotFound, "Kid not found")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]string{"message": "Kid avatar updated"})
 }

@@ -34,10 +34,10 @@ func (h *KidHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	// Fetch kid profile
 	var kid models.Profile
 	err := h.DB.QueryRow(
-		`SELECT id, family_id, full_name, role, current_balance, created_at
+		`SELECT id, family_id, full_name, role, current_balance, avatar, created_at
 		 FROM profiles WHERE id = $1 AND role = 'kid'`,
 		claims.UserID,
-	).Scan(&kid.ID, &kid.FamilyID, &kid.FullName, &kid.Role, &kid.CurrentBalance, &kid.CreatedAt)
+	).Scan(&kid.ID, &kid.FamilyID, &kid.FullName, &kid.Role, &kid.CurrentBalance, &kid.Avatar, &kid.CreatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -102,6 +102,28 @@ func (h *KidHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 		Tasks:  tasks,
 		Ledger: ledgerHistory,
 	})
+}
+
+// PATCH /api/v1/kid/profile/avatar
+func (h *KidHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	var req models.UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Avatar == "" {
+		RespondError(w, http.StatusBadRequest, "avatar field is required")
+		return
+	}
+
+	_, err := h.DB.Exec(
+		`UPDATE profiles SET avatar = $1 WHERE id = $2`,
+		req.Avatar, claims.UserID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to update avatar")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]string{"message": "Avatar updated"})
 }
 
 // POST /api/v1/kid/tasks/{id}/log

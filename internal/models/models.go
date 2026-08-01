@@ -45,6 +45,7 @@ type Profile struct {
 	Role           UserRole  `json:"role"`
 	PinHash        string    `json:"-"`
 	CurrentBalance float64   `json:"current_balance"`
+	Avatar         *string   `json:"avatar,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -174,6 +175,10 @@ type PayoutRequest struct {
 	KidID  string  `json:"kid_id"`
 	Amount float64 `json:"amount"`
 	Notes  *string `json:"notes,omitempty"`
+}
+
+type UpdateAvatarRequest struct {
+	Avatar string `json:"avatar"` // base64 data URL
 }
 
 type KidSummary struct {

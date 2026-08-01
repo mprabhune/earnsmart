@@ -98,3 +98,6 @@ ALTER TABLE task_logs ADD COLUMN IF NOT EXISTS proof_image TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP WITH TIME ZONE;
+
+-- Add avatar to profiles (safe to run multiple times)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar TEXT;
