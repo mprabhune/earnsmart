@@ -90,3 +90,8 @@ CREATE INDEX IF NOT EXISTS idx_ledger_kid ON ledger(kid_id);
 -- Add proof fields to task_logs (safe to run multiple times)
 ALTER TABLE task_logs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE task_logs ADD COLUMN IF NOT EXISTS proof_image TEXT;
+
+-- Add password + reset fields to profiles (safe to run multiple times)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP WITH TIME ZONE;

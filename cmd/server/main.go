@@ -91,6 +91,8 @@ func main() {
 		r.Post("/parent/register", authHandler.RegisterParent)
 		r.Post("/parent/login", authHandler.ParentLogin)
 		r.Post("/kid/login", authHandler.KidLogin)
+		r.Post("/forgot", authHandler.ForgotCredentials)
+		r.Post("/reset", authHandler.ResetCredentials)
 	})
 
 	// Protected Routes (JWT required)

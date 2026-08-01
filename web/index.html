@@ -341,9 +341,22 @@
           <div id="parent-login-alert"></div>
           <label>Email</label>
           <input type="email" id="pl-email" placeholder="you@example.com" />
-          <label>4-Digit PIN</label>
-          <input type="password" id="pl-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+          <div class="tabs" style="margin-bottom:12px">
+            <button class="tab-btn active" id="login-pass-tab" onclick="App.switchLoginMethod('password')">Password</button>
+            <button class="tab-btn" id="login-pin-tab" onclick="App.switchLoginMethod('pin')">4-Digit PIN</button>
+          </div>
+          <div id="login-method-password">
+            <label>Password</label>
+            <input type="password" id="pl-password" placeholder="••••••••" />
+          </div>
+          <div id="login-method-pin" style="display:none">
+            <label>4-Digit PIN</label>
+            <input type="password" id="pl-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+          </div>
           <button class="btn" onclick="App.parentLogin()">Sign In</button>
+          <p style="text-align:center;margin-top:12px;font-size:.85rem">
+            <a onclick="App.show('parent-forgot')" style="color:var(--green);cursor:pointer">Forgot password / PIN?</a>
+          </p>
         </div>
 
         <!-- Register -->
@@ -355,9 +368,42 @@
           <input type="text" id="pr-name" placeholder="Jane Smith" />
           <label>Email</label>
           <input type="email" id="pr-email" placeholder="you@example.com" />
-          <label>4-Digit PIN</label>
+          <label>Password</label>
+          <input type="password" id="pr-password" placeholder="Choose a strong password" />
+          <label>4-Digit PIN <span style="font-weight:400;color:var(--muted)">(optional, for quick login)</span></label>
           <input type="password" id="pr-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
           <button class="btn gold" onclick="App.parentRegister()">Create Family Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════ PARENT FORGOT ══════════════════════════════════ -->
+<div id="screen-parent-forgot" class="screen">
+  <div class="auth-wrap">
+    <div>
+      <a class="back-link" onclick="App.show('parent-auth')">← Back to Login</a>
+      <div class="auth-box">
+        <h2>Reset Credentials</h2>
+        <p class="sub">Enter your email to get a reset code</p>
+        <div id="forgot-alert"></div>
+        <div id="forgot-form">
+          <label>Email</label>
+          <input type="email" id="forgot-email" placeholder="you@example.com" />
+          <button class="btn" onclick="App.forgotCredentials()">Get Reset Code</button>
+        </div>
+        <div id="reset-form" style="display:none">
+          <div id="reset-code-box" class="kid-id-box" style="margin-bottom:16px">
+            <div class="label">Your Reset Code (valid 15 mins)</div>
+            <div class="id" id="reset-code-display" style="font-size:1.8rem;letter-spacing:4px;text-align:center"></div>
+          </div>
+          <div id="reset-alert"></div>
+          <label>New Password <span style="font-weight:400;color:var(--muted)">(leave blank to keep)</span></label>
+          <input type="password" id="reset-password" placeholder="••••••••" />
+          <label>New 4-Digit PIN <span style="font-weight:400;color:var(--muted)">(leave blank to keep)</span></label>
+          <input type="password" id="reset-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+          <button class="btn gold" onclick="App.resetCredentials()">Update Credentials</button>
         </div>
       </div>
     </div>
@@ -646,7 +692,8 @@ const App = {
   // ── NAVIGATION ──────────────────────────────────────────────
   show(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screen-' + name).classList.add('active');
+    const el = document.getElementById('screen-' + name);
+    if (el) el.classList.add('active');
   },
 
   switchTab(group, tab) {
@@ -661,6 +708,13 @@ const App = {
 
   goParentAuth() { this.show('parent-auth'); },
   goKidAuth()    { this.show('kid-auth'); },
+
+  switchLoginMethod(method) {
+    document.getElementById('login-method-password').style.display = method === 'password' ? '' : 'none';
+    document.getElementById('login-method-pin').style.display      = method === 'pin'      ? '' : 'none';
+    document.getElementById('login-pass-tab').classList.toggle('active', method === 'password');
+    document.getElementById('login-pin-tab').classList.toggle('active', method === 'pin');
+  },
 
   logout() {
     localStorage.removeItem('es_token');
@@ -681,10 +735,15 @@ const App = {
 
   // ── PARENT AUTH ─────────────────────────────────────────────
   async parentLogin() {
-    const email = document.getElementById('pl-email').value.trim();
-    const pin   = document.getElementById('pl-pin').value.trim();
-    if (!email || pin.length !== 4) return alert_('parent-login-alert', 'Email and 4-digit PIN are required.');
-    const r = await req('POST', '/api/v1/auth/parent/login', { email, pin });
+    const email    = document.getElementById('pl-email').value.trim();
+    const password = document.getElementById('pl-password').value;
+    const pin      = document.getElementById('pl-pin').value.trim();
+    const usingPin = document.getElementById('login-method-pin').style.display !== 'none';
+    if (!email) return alert_('parent-login-alert', 'Email is required.');
+    if (usingPin && pin.length !== 4) return alert_('parent-login-alert', '4-digit PIN is required.');
+    if (!usingPin && !password) return alert_('parent-login-alert', 'Password is required.');
+    const body = usingPin ? { email, pin } : { email, password };
+    const r = await req('POST', '/api/v1/auth/parent/login', body);
     if (!r) return;
     if (!r.ok) return alert_('parent-login-alert', r.data.error || 'Login failed.');
     this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
@@ -695,14 +754,52 @@ const App = {
     const family_name = document.getElementById('pr-family').value.trim();
     const full_name   = document.getElementById('pr-name').value.trim();
     const email       = document.getElementById('pr-email').value.trim();
+    const password    = document.getElementById('pr-password').value;
     const pin         = document.getElementById('pr-pin').value.trim();
-    if (!family_name || !full_name || !email || pin.length !== 4)
-      return alert_('parent-register-alert', 'All fields are required and PIN must be 4 digits.');
-    const r = await req('POST', '/api/v1/auth/parent/register', { family_name, full_name, email, pin });
+    if (!family_name || !full_name || !email || !password)
+      return alert_('parent-register-alert', 'Family name, full name, email, and password are required.');
+    if (pin && pin.length !== 4)
+      return alert_('parent-register-alert', 'PIN must be exactly 4 digits.');
+    const body = { family_name, full_name, email, password };
+    if (pin) body.pin = pin;
+    const r = await req('POST', '/api/v1/auth/parent/register', body);
     if (!r) return;
     if (!r.ok) return alert_('parent-register-alert', r.data.error || 'Registration failed.');
     this.saveSession(r.data.token, 'parent', r.data.user, r.data.family);
     this.showParentDash();
+  },
+
+  async forgotCredentials() {
+    const email = document.getElementById('forgot-email').value.trim();
+    if (!email) return alert_('forgot-alert', 'Email is required.');
+    const r = await req('POST', '/api/v1/auth/forgot', { email });
+    if (!r || !r.ok) return alert_('forgot-alert', r?.data?.error || 'Request failed.');
+    if (r.data.reset_code) {
+      document.getElementById('reset-code-display').textContent = r.data.reset_code;
+      document.getElementById('forgot-form').style.display = 'none';
+      document.getElementById('reset-form').style.display  = '';
+      document.getElementById('forgot-alert').innerHTML = '';
+    } else {
+      alert_('forgot-alert', r.data.message, 'success');
+    }
+  },
+
+  async resetCredentials() {
+    const email        = document.getElementById('forgot-email').value.trim();
+    const reset_code   = document.getElementById('reset-code-display').textContent.trim();
+    const new_password = document.getElementById('reset-password').value;
+    const new_pin      = document.getElementById('reset-pin').value.trim();
+    if (!new_password && new_pin.length !== 4)
+      return alert_('reset-alert', 'Enter a new password or a new 4-digit PIN.');
+    if (new_pin && new_pin.length !== 4)
+      return alert_('reset-alert', 'PIN must be exactly 4 digits.');
+    const body = { email, reset_code };
+    if (new_password) body.new_password = new_password;
+    if (new_pin)      body.new_pin      = new_pin;
+    const r = await req('POST', '/api/v1/auth/reset', body);
+    if (!r || !r.ok) return alert_('reset-alert', r?.data?.error || 'Reset failed.');
+    alert_('reset-alert', 'Credentials updated! Please log in.', 'success');
+    setTimeout(() => App.show('parent-auth'), 1500);
   },
 
   // ── KID AUTH ────────────────────────────────────────────────
