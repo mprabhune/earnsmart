@@ -249,7 +249,28 @@
 
 ---
 
-## 13. Planned / Backlog
+## 13. Profile Avatars
+
+- Parent and kids can each have a profile photo
+- Stored as base64 JPEG in the `profiles.avatar` column (Supabase/cloud)
+- **Parent**: taps the avatar circle in the top-right nav → file picker → photo uploaded and shown immediately
+- **Kid (by parent)**: tap the avatar circle in the kid detail view header → sets the kid's photo
+- **Kid (self)**: taps their own nav avatar → file picker → updates their own photo
+- Kid dashboard syncs the avatar from the server on load (so if parent set it, kid sees it immediately)
+- Images are resized to max 200×200px in-browser before upload (~20KB per avatar)
+- Fallback: if no avatar, shows a circle with the person's first initial
+- Kid cards in the parent Kids list show the kid's avatar or initials
+
+### API endpoints
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| PATCH | `/api/v1/parent/profile/avatar` | Parent JWT | Update parent's own avatar |
+| PATCH | `/api/v1/parent/kids/{id}/avatar` | Parent JWT | Update a kid's avatar |
+| PATCH | `/api/v1/kid/profile/avatar` | Kid JWT | Update kid's own avatar |
+
+---
+
+## 14. Planned / Backlog
 
 - [ ] Push notifications (currently banner-only, no push)
 - [ ] Multi-family / SaaS mode with proper row-level security
