@@ -111,12 +111,22 @@ func main() {
 			r.Get("/approvals", parentHandler.GetApprovals)
 			r.Post("/approvals/{id}/review", parentHandler.ReviewTask)
 
+			r.Get("/task-proposals", parentHandler.GetTaskProposals)
+			r.Post("/task-proposals/{id}/review", parentHandler.ReviewTaskProposal)
+
 			r.Get("/summary", parentHandler.GetSummary)
 			r.Get("/kids", parentHandler.GetKids)
 			r.Post("/kids", parentHandler.CreateKid)
+			r.Put("/kids/{id}", parentHandler.UpdateKid)
+			r.Delete("/kids/{id}", parentHandler.DeleteKid)
 			r.Get("/kids/{id}/tasks", parentHandler.GetKidTasks)
 			r.Post("/payout", parentHandler.ProcessPayout)
+			r.Post("/bonus", parentHandler.ProcessBonus)
 			r.Get("/notifications", parentHandler.GetNotifications)
+
+			r.Get("/parents", parentHandler.GetParents)
+			r.Post("/parents", parentHandler.AddParent)
+			r.Delete("/parents/{id}", parentHandler.DeleteParent)
 
 			r.Patch("/profile/avatar", parentHandler.UpdateAvatar)
 			r.Patch("/kids/{id}/avatar", parentHandler.UpdateKidAvatar)
@@ -128,6 +138,8 @@ func main() {
 
 			r.Get("/dashboard", kidHandler.GetDashboard)
 			r.Patch("/profile/avatar", kidHandler.UpdateAvatar)
+			r.Post("/tasks/propose", kidHandler.ProposeTask)
+			r.Get("/tasks/proposals", kidHandler.GetMyProposals)
 			r.Post("/tasks/{id}/log", kidHandler.LogProgress)
 			r.Post("/tasks/{id}/submit", kidHandler.SubmitTask)
 		})

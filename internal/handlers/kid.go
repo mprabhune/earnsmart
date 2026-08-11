@@ -126,6 +126,85 @@ func (h *KidHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, map[string]string{"message": "Avatar updated"})
 }
 
+// POST /api/v1/kid/tasks/propose
+func (h *KidHandler) ProposeTask(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	var req models.CreateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	if req.Title == "" || req.RewardAmount < 0 {
+		RespondError(w, http.StatusBadRequest, "title is required and reward_amount must be >= 0")
+		return
+	}
+
+	if req.TargetUnits <= 0 {
+		req.TargetUnits = 1
+	}
+	if req.TaskType == "" {
+		req.TaskType = models.TaskTypeAdhoc
+	}
+
+	var desc *string
+	if req.Description != "" {
+		desc = &req.Description
+	}
+
+	var taskDef models.TaskDefinition
+	err := h.DB.QueryRow(
+		`INSERT INTO task_definitions (family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, approval_status, due_date)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, false, 'pending', $8)
+		 RETURNING id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, approval_status, due_date, created_at, updated_at`,
+		claims.FamilyID, claims.UserID, req.Title, desc, req.TaskType, req.RewardAmount, req.TargetUnits, req.DueDate,
+	).Scan(
+		&taskDef.ID, &taskDef.FamilyID, &taskDef.CreatedBy, &taskDef.Title, &taskDef.Description,
+		&taskDef.TaskType, &taskDef.RewardAmount, &taskDef.TargetUnits, &taskDef.IsActive, &taskDef.ApprovalStatus,
+		&taskDef.DueDate, &taskDef.CreatedAt, &taskDef.UpdatedAt,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to propose task: "+err.Error())
+		return
+	}
+
+	RespondJSON(w, http.StatusCreated, taskDef)
+}
+
+// GET /api/v1/kid/tasks/proposals
+func (h *KidHandler) GetMyProposals(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	rows, err := h.DB.Query(
+		`SELECT id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, approval_status, due_date, created_at, updated_at
+		 FROM task_definitions
+		 WHERE family_id = $1 AND created_by = $2
+		 ORDER BY created_at DESC`,
+		claims.FamilyID, claims.UserID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to query proposals")
+		return
+	}
+	defer rows.Close()
+
+	proposals := []models.TaskDefinition{}
+	for rows.Next() {
+		var t models.TaskDefinition
+		if err := rows.Scan(
+			&t.ID, &t.FamilyID, &t.CreatedBy, &t.Title, &t.Description, &t.TaskType,
+			&t.RewardAmount, &t.TargetUnits, &t.IsActive, &t.ApprovalStatus, &t.DueDate, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			RespondError(w, http.StatusInternalServerError, "Error scanning proposals")
+			return
+		}
+		proposals = append(proposals, t)
+	}
+
+	RespondJSON(w, http.StatusOK, proposals)
+}
+
 // POST /api/v1/kid/tasks/{id}/log
 func (h *KidHandler) LogProgress(w http.ResponseWriter, r *http.Request) {
 	claims, _ := middleware.GetClaims(r.Context())

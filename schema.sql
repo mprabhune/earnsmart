@@ -101,3 +101,21 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP W
 
 -- Add avatar to profiles (safe to run multiple times)
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar TEXT;
+
+-- Task proposal workflow (kid-created tasks need parent approval before going live)
+ALTER TABLE task_definitions ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'approved';
+ALTER TABLE task_definitions DROP CONSTRAINT IF EXISTS task_definitions_approval_status_check;
+ALTER TABLE task_definitions ADD CONSTRAINT task_definitions_approval_status_check
+    CHECK (approval_status IN ('pending', 'approved', 'rejected'));
+CREATE INDEX IF NOT EXISTS idx_task_definitions_approval ON task_definitions(family_id, approval_status);
+
+-- Bonus transaction type
+ALTER TABLE ledger DROP CONSTRAINT IF EXISTS ledger_transaction_type_check;
+ALTER TABLE ledger ADD CONSTRAINT ledger_transaction_type_check
+    CHECK (transaction_type IN ('EARNED', 'PAYOUT', 'ADJUSTMENT', 'BONUS'));
+
+-- Allow deleting a profile (kid or parent) that has created task definitions —
+-- preserve the task definition/history instead of blocking the delete
+ALTER TABLE task_definitions DROP CONSTRAINT IF EXISTS task_definitions_created_by_fkey;
+ALTER TABLE task_definitions ADD CONSTRAINT task_definitions_created_by_fkey
+    FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;

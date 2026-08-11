@@ -310,16 +310,19 @@ func (h *ParentHandler) ReviewTask(w http.ResponseWriter, r *http.Request) {
 
 	// Verify task_log belongs to this family and get details
 	var kidID uuid.UUID
+	var taskDefID uuid.UUID
 	var rewardPerUnit float64
 	var targetUnits int
 	var currentStatus models.TaskStatus
+	var taskType models.TaskType
+	var taskIsActive bool
 	err = tx.QueryRow(
-		`SELECT tl.assigned_to, td.reward_amount, td.target_units, tl.status
+		`SELECT tl.assigned_to, td.id, td.reward_amount, td.target_units, tl.status, td.task_type, td.is_active
 		 FROM task_logs tl
 		 JOIN task_definitions td ON tl.task_definition_id = td.id
 		 WHERE tl.id = $1 AND td.family_id = $2`,
 		logID, claims.FamilyID,
-	).Scan(&kidID, &rewardPerUnit, &targetUnits, &currentStatus)
+	).Scan(&kidID, &taskDefID, &rewardPerUnit, &targetUnits, &currentStatus, &taskType, &taskIsActive)
 	rewardAmount := rewardPerUnit * float64(targetUnits)
 
 	if err != nil {
@@ -371,6 +374,19 @@ func (h *ParentHandler) ReviewTask(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			RespondError(w, http.StatusInternalServerError, "Failed to record ledger entry")
 			return
+		}
+
+		// Daily recurring tasks immediately re-pop a fresh instance once approved
+		if taskType == models.TaskTypeDailyRecurring && taskIsActive {
+			_, err = tx.Exec(
+				`INSERT INTO task_logs (task_definition_id, assigned_to, status, current_progress_units)
+				 VALUES ($1, $2, 'pending', 0)`,
+				taskDefID, kidID,
+			)
+			if err != nil {
+				RespondError(w, http.StatusInternalServerError, "Failed to create next daily task instance")
+				return
+			}
 		}
 	}
 
@@ -729,4 +745,421 @@ func (h *ParentHandler) UpdateKidAvatar(w http.ResponseWriter, r *http.Request) 
 	}
 
 	RespondJSON(w, http.StatusOK, map[string]string{"message": "Kid avatar updated"})
+}
+
+// GET /api/v1/parent/task-proposals
+func (h *ParentHandler) GetTaskProposals(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	rows, err := h.DB.Query(
+		`SELECT td.id, td.family_id, td.created_by, td.title, td.description, td.task_type, td.reward_amount,
+		        td.target_units, td.is_active, td.approval_status, td.due_date, td.created_at, td.updated_at, p.full_name
+		 FROM task_definitions td
+		 JOIN profiles p ON td.created_by = p.id
+		 WHERE td.family_id = $1 AND td.approval_status = 'pending'
+		 ORDER BY td.created_at ASC`,
+		claims.FamilyID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to query task proposals")
+		return
+	}
+	defer rows.Close()
+
+	proposals := []models.TaskDefinition{}
+	for rows.Next() {
+		var t models.TaskDefinition
+		if err := rows.Scan(
+			&t.ID, &t.FamilyID, &t.CreatedBy, &t.Title, &t.Description, &t.TaskType,
+			&t.RewardAmount, &t.TargetUnits, &t.IsActive, &t.ApprovalStatus, &t.DueDate,
+			&t.CreatedAt, &t.UpdatedAt, &t.ProposedByName,
+		); err != nil {
+			RespondError(w, http.StatusInternalServerError, "Error scanning task proposals")
+			return
+		}
+		proposals = append(proposals, t)
+	}
+
+	RespondJSON(w, http.StatusOK, proposals)
+}
+
+// POST /api/v1/parent/task-proposals/{id}/review
+func (h *ParentHandler) ReviewTaskProposal(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	taskID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid task ID")
+		return
+	}
+
+	var req models.ReviewProposalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	tx, err := h.DB.Begin()
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer tx.Rollback()
+
+	var taskDef models.TaskDefinition
+	err = tx.QueryRow(
+		`SELECT id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, approval_status, due_date, created_at, updated_at
+		 FROM task_definitions WHERE id = $1 AND family_id = $2 AND approval_status = 'pending'`,
+		taskID, claims.FamilyID,
+	).Scan(
+		&taskDef.ID, &taskDef.FamilyID, &taskDef.CreatedBy, &taskDef.Title, &taskDef.Description,
+		&taskDef.TaskType, &taskDef.RewardAmount, &taskDef.TargetUnits, &taskDef.IsActive, &taskDef.ApprovalStatus,
+		&taskDef.DueDate, &taskDef.CreatedAt, &taskDef.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			RespondError(w, http.StatusNotFound, "Pending task proposal not found")
+			return
+		}
+		RespondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	if taskDef.CreatedBy == nil {
+		RespondError(w, http.StatusInternalServerError, "Proposal has no proposing kid on record")
+		return
+	}
+
+	if !req.Approved {
+		_, err = tx.Exec(
+			`UPDATE task_definitions SET approval_status = 'rejected', updated_at = NOW() WHERE id = $1`,
+			taskID,
+		)
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, "Failed to reject proposal")
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			RespondError(w, http.StatusInternalServerError, "Transaction failed")
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]interface{}{"message": "Proposal rejected", "approved": false})
+		return
+	}
+
+	if req.RewardAmount != nil {
+		taskDef.RewardAmount = *req.RewardAmount
+	}
+	if req.TargetUnits != nil {
+		taskDef.TargetUnits = *req.TargetUnits
+	}
+	if req.DueDate != nil {
+		taskDef.DueDate = req.DueDate
+	}
+
+	err = tx.QueryRow(
+		`UPDATE task_definitions
+		 SET reward_amount = $1, target_units = $2, due_date = $3, is_active = true, approval_status = 'approved', updated_at = NOW()
+		 WHERE id = $4
+		 RETURNING id, family_id, created_by, title, description, task_type, reward_amount, target_units, is_active, approval_status, due_date, created_at, updated_at`,
+		taskDef.RewardAmount, taskDef.TargetUnits, taskDef.DueDate, taskID,
+	).Scan(
+		&taskDef.ID, &taskDef.FamilyID, &taskDef.CreatedBy, &taskDef.Title, &taskDef.Description,
+		&taskDef.TaskType, &taskDef.RewardAmount, &taskDef.TargetUnits, &taskDef.IsActive, &taskDef.ApprovalStatus,
+		&taskDef.DueDate, &taskDef.CreatedAt, &taskDef.UpdatedAt,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to approve proposal")
+		return
+	}
+
+	_, err = tx.Exec(
+		`INSERT INTO task_logs (task_definition_id, assigned_to, status, current_progress_units)
+		 VALUES ($1, $2, 'pending', 0)`,
+		taskDef.ID, *taskDef.CreatedBy,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to assign approved task")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		RespondError(w, http.StatusInternalServerError, "Transaction failed")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, taskDef)
+}
+
+// POST /api/v1/parent/bonus
+func (h *ParentHandler) ProcessBonus(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	var req models.BonusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	if req.KidID == "" || req.Amount <= 0 {
+		RespondError(w, http.StatusBadRequest, "kid_id and positive amount are required")
+		return
+	}
+
+	kidUUID, err := uuid.Parse(req.KidID)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid kid_id format")
+		return
+	}
+
+	tx, err := h.DB.Begin()
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer tx.Rollback()
+
+	var newBalance float64
+	err = tx.QueryRow(
+		`UPDATE profiles SET current_balance = current_balance + $1 WHERE id = $2 AND family_id = $3 AND role = 'kid'
+		 RETURNING current_balance`,
+		req.Amount, kidUUID, claims.FamilyID,
+	).Scan(&newBalance)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			RespondError(w, http.StatusNotFound, "Kid profile not found")
+			return
+		}
+		RespondError(w, http.StatusInternalServerError, "Failed to update kid balance")
+		return
+	}
+
+	_, err = tx.Exec(
+		`INSERT INTO ledger (family_id, kid_id, amount, transaction_type)
+		 VALUES ($1, $2, $3, 'BONUS')`,
+		claims.FamilyID, kidUUID, req.Amount,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to log bonus transaction")
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		RespondError(w, http.StatusInternalServerError, "Transaction failed")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"message":     "Bonus recorded successfully",
+		"new_balance": newBalance,
+	})
+}
+
+// PUT /api/v1/parent/kids/{id}
+func (h *ParentHandler) UpdateKid(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	kidID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid kid ID")
+		return
+	}
+
+	var req models.UpdateKidRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	if req.FullName == nil && req.PIN == nil {
+		RespondError(w, http.StatusBadRequest, "Provide full_name and/or pin to update")
+		return
+	}
+
+	var pinHash string
+	if req.PIN != nil {
+		if len(*req.PIN) != 4 {
+			RespondError(w, http.StatusBadRequest, "pin must be 4 digits")
+			return
+		}
+		h, err := bcrypt.GenerateFromPassword([]byte(*req.PIN), bcrypt.DefaultCost)
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, "Failed to hash PIN")
+			return
+		}
+		pinHash = string(h)
+	}
+
+	var kid models.Profile
+	err = h.DB.QueryRow(
+		`UPDATE profiles
+		 SET full_name = COALESCE(NULLIF($1, ''), full_name),
+		     pin_hash = CASE WHEN $2 != '' THEN $2 ELSE pin_hash END
+		 WHERE id = $3 AND family_id = $4 AND role = 'kid'
+		 RETURNING id, family_id, full_name, role, current_balance, avatar, created_at`,
+		valueOrEmpty(req.FullName), pinHash, kidID, claims.FamilyID,
+	).Scan(&kid.ID, &kid.FamilyID, &kid.FullName, &kid.Role, &kid.CurrentBalance, &kid.Avatar, &kid.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			RespondError(w, http.StatusNotFound, "Kid not found")
+			return
+		}
+		RespondError(w, http.StatusInternalServerError, "Failed to update kid")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, kid)
+}
+
+// DELETE /api/v1/parent/kids/{id}
+func (h *ParentHandler) DeleteKid(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	kidID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid kid ID")
+		return
+	}
+
+	res, err := h.DB.Exec(`DELETE FROM profiles WHERE id = $1 AND family_id = $2 AND role = 'kid'`, kidID, claims.FamilyID)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to delete kid")
+		return
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		RespondError(w, http.StatusNotFound, "Kid not found")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]string{"message": "Kid deleted successfully"})
+}
+
+// GET /api/v1/parent/parents
+func (h *ParentHandler) GetParents(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	rows, err := h.DB.Query(
+		`SELECT id, family_id, full_name, email, role, avatar, created_at
+		 FROM profiles WHERE family_id = $1 AND role = 'parent'
+		 ORDER BY created_at ASC`,
+		claims.FamilyID,
+	)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to query parents")
+		return
+	}
+	defer rows.Close()
+
+	parents := []models.Profile{}
+	for rows.Next() {
+		var p models.Profile
+		if err := rows.Scan(&p.ID, &p.FamilyID, &p.FullName, &p.Email, &p.Role, &p.Avatar, &p.CreatedAt); err != nil {
+			RespondError(w, http.StatusInternalServerError, "Error scanning parent profiles")
+			return
+		}
+		parents = append(parents, p)
+	}
+
+	RespondJSON(w, http.StatusOK, parents)
+}
+
+// POST /api/v1/parent/parents
+func (h *ParentHandler) AddParent(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+
+	var req models.AddParentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	if req.FullName == "" || req.Email == "" {
+		RespondError(w, http.StatusBadRequest, "full_name and email are required")
+		return
+	}
+	if req.Password == "" && len(req.PIN) != 4 {
+		RespondError(w, http.StatusBadRequest, "At least a password or a 4-digit PIN is required")
+		return
+	}
+
+	var passwordHash sql.NullString
+	if req.Password != "" {
+		ph, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, "Failed to hash password")
+			return
+		}
+		passwordHash = sql.NullString{String: string(ph), Valid: true}
+	}
+
+	var pinHash string
+	if len(req.PIN) == 4 {
+		ph, err := bcrypt.GenerateFromPassword([]byte(req.PIN), bcrypt.DefaultCost)
+		if err != nil {
+			RespondError(w, http.StatusInternalServerError, "Failed to hash PIN")
+			return
+		}
+		pinHash = string(ph)
+	}
+
+	var parent models.Profile
+	err := h.DB.QueryRow(
+		`INSERT INTO profiles (family_id, full_name, email, role, pin_hash, password_hash)
+		 VALUES ($1, $2, $3, 'parent', $4, $5)
+		 RETURNING id, family_id, full_name, email, role, current_balance, created_at`,
+		claims.FamilyID, req.FullName, req.Email, pinHash, passwordHash,
+	).Scan(&parent.ID, &parent.FamilyID, &parent.FullName, &parent.Email, &parent.Role, &parent.CurrentBalance, &parent.CreatedAt)
+	if err != nil {
+		RespondError(w, http.StatusConflict, "Email already in use or database error")
+		return
+	}
+
+	RespondJSON(w, http.StatusCreated, parent)
+}
+
+// DELETE /api/v1/parent/parents/{id}
+func (h *ParentHandler) DeleteParent(w http.ResponseWriter, r *http.Request) {
+	claims, _ := middleware.GetClaims(r.Context())
+	parentID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid parent ID")
+		return
+	}
+
+	if parentID == claims.UserID {
+		RespondError(w, http.StatusBadRequest, "Cannot remove your own account here")
+		return
+	}
+
+	var parentCount int
+	if err := h.DB.QueryRow(
+		`SELECT COUNT(*) FROM profiles WHERE family_id = $1 AND role = 'parent'`, claims.FamilyID,
+	).Scan(&parentCount); err != nil {
+		RespondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	if parentCount <= 1 {
+		RespondError(w, http.StatusBadRequest, "Cannot remove the last parent in a family")
+		return
+	}
+
+	res, err := h.DB.Exec(`DELETE FROM profiles WHERE id = $1 AND family_id = $2 AND role = 'parent'`, parentID, claims.FamilyID)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to remove parent")
+		return
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		RespondError(w, http.StatusNotFound, "Parent not found")
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, map[string]string{"message": "Parent removed successfully"})
+}
+
+func valueOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

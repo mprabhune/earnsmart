@@ -473,6 +473,8 @@
       <button class="dash-tab" onclick="App.parentTab('approvals')">✅ Approvals</button>
       <button class="dash-tab" onclick="App.parentTab('summary')">📊 Summary</button>
       <button class="dash-tab" onclick="App.parentTab('payout')">💸 Payout</button>
+      <button class="dash-tab" onclick="App.parentTab('bonus')">🎁 Bonus</button>
+      <button class="dash-tab" onclick="App.parentTab('family')">👪 Family</button>
     </div>
 
     <!-- Kids Tab -->
@@ -497,7 +499,11 @@
               <div class="meta" id="kid-detail-balance"></div>
             </div>
           </div>
-          <button class="btn sm gold" onclick="App.openAddTaskForKid()">+ Assign Task</button>
+          <div class="card-actions">
+            <button class="btn sm outline" onclick="App.openEditKid()">✏️ Edit</button>
+            <button class="btn sm danger" onclick="App.deleteKid()">🗑️ Delete</button>
+            <button class="btn sm gold" onclick="App.openAddTaskForKid()">+ Assign Task</button>
+          </div>
         </div>
 
         <!-- Date filter -->
@@ -522,6 +528,9 @@
 
     <!-- Approvals Tab -->
     <div id="parent-panel-approvals" class="dash-panel">
+      <div class="section-header"><h2>Task Requests</h2></div>
+      <div id="task-proposals-list" style="margin-bottom:24px"></div>
+
       <div class="section-header"><h2>Pending Approvals</h2></div>
       <div id="approvals-list"></div>
     </div>
@@ -543,6 +552,30 @@
         <input type="number" id="payout-amount" placeholder="0.00" min="0.01" step="0.01" />
         <button class="btn gold" onclick="App.processPayout()">Record Payout 💸</button>
       </div>
+    </div>
+
+    <!-- Bonus Tab -->
+    <div id="parent-panel-bonus" class="dash-panel">
+      <div class="card">
+        <h3 style="margin-bottom:16px">Give a Bonus</h3>
+        <div id="bonus-alert"></div>
+        <label>Select Kid</label>
+        <select id="bonus-kid"></select>
+        <label>Amount ($)</label>
+        <input type="number" id="bonus-amount" placeholder="0.00" min="0.01" step="0.01" />
+        <label>Reason (optional)</label>
+        <input type="text" id="bonus-notes" placeholder="Great report card!" />
+        <button class="btn gold" onclick="App.giveBonus()">Give Bonus 🎁</button>
+      </div>
+    </div>
+
+    <!-- Family Tab -->
+    <div id="parent-panel-family" class="dash-panel">
+      <div class="section-header">
+        <h2>Parents</h2>
+        <button class="btn sm gold" onclick="App.openModal('modal-add-parent')">+ Add Parent</button>
+      </div>
+      <div id="parents-list"></div>
     </div>
   </div>
 </div>
@@ -567,7 +600,16 @@
     </div>
 
     <div id="kid-panel-tasks" class="dash-panel active">
+      <div class="section-header">
+        <h2>My Tasks</h2>
+        <button class="btn sm gold" onclick="App.openProposeTask()">+ Propose Task</button>
+      </div>
       <div id="kid-tasks-list"></div>
+
+      <div id="kid-proposals-section" style="display:none;margin-top:24px">
+        <div class="section-header"><h2>My Proposals</h2></div>
+        <div id="kid-proposals-list"></div>
+      </div>
     </div>
     <div id="kid-panel-history" class="dash-panel">
       <div class="card">
@@ -683,6 +725,76 @@
     <div class="modal-footer">
       <button class="btn outline" onclick="App.closeModal('modal-log-progress')">Cancel</button>
       <button class="btn gold" onclick="App.logProgress()">Log Progress ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- Propose Task (kid) -->
+<div id="modal-propose-task" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-propose-task')">
+  <div class="modal">
+    <h3>Propose a Task</h3>
+    <div id="propose-task-alert"></div>
+    <label>Title</label>
+    <input type="text" id="propose-title" placeholder="Wash the car" />
+    <label>Description (optional)</label>
+    <textarea id="propose-desc" placeholder="Wash and dry the whole car..."></textarea>
+    <div class="form-grid">
+      <div>
+        <label>Type</label>
+        <select id="propose-type">
+          <option value="adhoc">Ad-hoc (one-time)</option>
+          <option value="daily_recurring">Daily Recurring</option>
+          <option value="accumulation">Accumulation</option>
+        </select>
+      </div>
+      <div>
+        <label>Target Units</label>
+        <input type="number" id="propose-units" value="1" min="1" />
+      </div>
+    </div>
+    <label>Suggested Reward per Unit ($)</label>
+    <input type="number" id="propose-reward" placeholder="0.20" min="0" step="0.01" />
+    <label>Due Date (optional)</label>
+    <input type="date" id="propose-due-date" style="margin-bottom:16px" />
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-propose-task')">Cancel</button>
+      <button class="btn gold" onclick="App.proposeTask()">Send to Parent</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Kid -->
+<div id="modal-edit-kid" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-edit-kid')">
+  <div class="modal">
+    <h3>Edit Kid</h3>
+    <div id="edit-kid-alert"></div>
+    <label>Full Name</label>
+    <input type="text" id="edit-kid-name" />
+    <label>New 4-Digit PIN <span style="font-weight:400;color:var(--muted)">(leave blank to keep)</span></label>
+    <input type="password" id="edit-kid-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-edit-kid')">Cancel</button>
+      <button class="btn" onclick="App.saveKidEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Parent -->
+<div id="modal-add-parent" class="modal-overlay" onclick="App.closeModalOutside(event,'modal-add-parent')">
+  <div class="modal">
+    <h3>Add Parent</h3>
+    <div id="add-parent-alert"></div>
+    <label>Full Name</label>
+    <input type="text" id="ap-name" placeholder="John Smith" />
+    <label>Email</label>
+    <input type="email" id="ap-email" placeholder="john@example.com" />
+    <label>Password</label>
+    <input type="password" id="ap-password" placeholder="Choose a strong password" />
+    <label>4-Digit PIN <span style="font-weight:400;color:var(--muted)">(optional, for quick login)</span></label>
+    <input type="password" id="ap-pin" maxlength="4" placeholder="••••" inputmode="numeric" />
+    <div class="modal-footer">
+      <button class="btn outline" onclick="App.closeModal('modal-add-parent')">Close</button>
+      <button class="btn gold" onclick="App.addParent()">Add Parent</button>
     </div>
   </div>
 </div>
@@ -907,9 +1019,11 @@ const App = {
     document.getElementById('parent-panel-' + name).classList.add('active');
     document.querySelectorAll('.dash-tab').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
-    if (name === 'approvals') this.loadApprovals();
+    if (name === 'approvals') { this.loadApprovals(); this.loadTaskProposals(); }
     if (name === 'summary')   this.loadSummary();
     if (name === 'payout')    this.renderPayoutKids();
+    if (name === 'bonus')     this.renderBonusKids();
+    if (name === 'family')    this.loadParents();
     if (name === 'kids')      this.showKidsList();
   },
 
@@ -986,6 +1100,41 @@ const App = {
           </div>
         </div>`;
     }).join('');
+  },
+
+  openEditKid() {
+    if (!this._selectedKid) return;
+    document.getElementById('edit-kid-name').value = this._selectedKid.full_name;
+    document.getElementById('edit-kid-pin').value = '';
+    alert_('edit-kid-alert', '');
+    this.openModal('modal-edit-kid');
+  },
+
+  async saveKidEdit() {
+    if (!this._selectedKid) return;
+    const full_name = document.getElementById('edit-kid-name').value.trim();
+    const pin       = document.getElementById('edit-kid-pin').value.trim();
+    if (!full_name) return alert_('edit-kid-alert', 'Name is required.');
+    if (pin && pin.length !== 4) return alert_('edit-kid-alert', 'PIN must be exactly 4 digits.');
+    const body = { full_name };
+    if (pin) body.pin = pin;
+    const r = await req('PUT', `/api/v1/parent/kids/${this._selectedKid.id}`, body);
+    if (!r) return;
+    if (!r.ok) return alert_('edit-kid-alert', r.data.error || 'Failed to update kid.');
+    this._selectedKid = r.data;
+    document.getElementById('kid-detail-name').textContent = r.data.full_name;
+    this.closeModal('modal-edit-kid');
+    await this.loadKids();
+  },
+
+  async deleteKid() {
+    if (!this._selectedKid) return;
+    if (!confirm(`Delete ${this._selectedKid.full_name} and all their data? This cannot be undone.`)) return;
+    const r = await req('DELETE', `/api/v1/parent/kids/${this._selectedKid.id}`);
+    if (!r) return;
+    if (!r.ok) return alert(r.data.error || 'Failed to delete kid.');
+    this.showKidsList();
+    await this.loadKids();
   },
 
   openAddTaskForKid() {
@@ -1171,6 +1320,63 @@ const App = {
     sel.innerHTML = state.kids.map(k => `<option value="${k.id}">${k.full_name} (${fmt$(k.current_balance)})</option>`).join('');
   },
 
+  renderBonusKids() {
+    const sel = document.getElementById('bonus-kid');
+    sel.innerHTML = state.kids.map(k => `<option value="${k.id}">${k.full_name} (${fmt$(k.current_balance)})</option>`).join('');
+  },
+
+  // Task Proposals (kid-created tasks awaiting approval)
+  async loadTaskProposals() {
+    const r = await req('GET', '/api/v1/parent/task-proposals');
+    if (!r || !r.ok) return;
+    const el = document.getElementById('task-proposals-list');
+    if (!r.data.length) {
+      el.innerHTML = `<div class="empty"><p>No task requests from kids right now.</p></div>`;
+      return;
+    }
+    el.innerHTML = r.data.map(t => `
+      <div class="card">
+        <div class="card-row" style="align-items:flex-start">
+          <div style="flex:1">
+            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+              <h3>${t.title}</h3>
+              <span class="badge blue">${t.task_type.replace('_',' ')}</span>
+            </div>
+            <div class="meta">👤 ${t.proposed_by_name}</div>
+            ${t.description ? `<div class="meta" style="margin-top:4px">${t.description}</div>` : ''}
+            <div class="form-grid" style="margin-top:12px">
+              <div>
+                <label>Reward per Unit ($)</label>
+                <input type="number" id="proposal-reward-${t.id}" value="${t.reward_amount}" min="0" step="0.01" />
+              </div>
+              <div>
+                <label>Target Units</label>
+                <input type="number" id="proposal-units-${t.id}" value="${t.target_units}" min="1" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn sm gold" onclick="App.reviewProposal('${t.id}', true)">Approve</button>
+          <button class="btn sm danger" onclick="App.reviewProposal('${t.id}', false)">Reject</button>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async reviewProposal(id, approved) {
+    const body = { approved };
+    if (approved) {
+      body.reward_amount = parseFloat(document.getElementById(`proposal-reward-${id}`).value) || 0;
+      body.target_units  = parseInt(document.getElementById(`proposal-units-${id}`).value) || 1;
+    }
+    const r = await req('POST', `/api/v1/parent/task-proposals/${id}/review`, body);
+    if (!r) return;
+    if (!r.ok) return alert('Review failed: ' + (r.data.error || ''));
+    await this.loadTaskProposals();
+    await this.loadKids();
+  },
+
   // Approvals
   async loadApprovals() {
     const r = await req('GET', '/api/v1/parent/approvals');
@@ -1253,6 +1459,75 @@ const App = {
     this.renderPayoutKids();
   },
 
+  // Bonus
+  async giveBonus() {
+    const kid_id = document.getElementById('bonus-kid').value;
+    const amount = parseFloat(document.getElementById('bonus-amount').value);
+    const notes  = document.getElementById('bonus-notes').value.trim() || null;
+    if (!kid_id || !amount || amount <= 0) return alert_('bonus-alert', 'Select a kid and enter a valid amount.');
+    const r = await req('POST', '/api/v1/parent/bonus', { kid_id, amount, notes });
+    if (!r) return;
+    if (!r.ok) return alert_('bonus-alert', r.data.error || 'Bonus failed.');
+    alert_('bonus-alert', `Bonus of ${fmt$(amount)} given! New balance: ${fmt$(r.data.new_balance)}`, 'success');
+    document.getElementById('bonus-amount').value = '';
+    document.getElementById('bonus-notes').value = '';
+    await this.loadKids();
+    this.renderBonusKids();
+  },
+
+  // Family (parents)
+  async loadParents() {
+    const r = await req('GET', '/api/v1/parent/parents');
+    if (!r || !r.ok) return;
+    const el = document.getElementById('parents-list');
+    el.innerHTML = r.data.map(p => `
+      <div class="card">
+        <div class="card-row">
+          <div style="display:flex;align-items:center;gap:14px">
+            ${p.avatar
+              ? `<img src="${p.avatar}" class="avatar-initials-lg" style="object-fit:cover;border:2px solid var(--border)" />`
+              : `<div class="avatar-initials-lg">${p.full_name.charAt(0).toUpperCase()}</div>`}
+            <div>
+              <h3>${p.full_name}${p.id === state.user.id ? ' (You)' : ''}</h3>
+              <div class="meta">${p.email || ''}</div>
+            </div>
+          </div>
+          ${p.id !== state.user.id ? `<button class="btn sm danger" onclick="App.removeParent('${p.id}','${p.full_name}')">Remove</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async addParent() {
+    const full_name = document.getElementById('ap-name').value.trim();
+    const email      = document.getElementById('ap-email').value.trim();
+    const password   = document.getElementById('ap-password').value;
+    const pin        = document.getElementById('ap-pin').value.trim();
+    if (!full_name || !email) return alert_('add-parent-alert', 'Full name and email are required.');
+    if (!password && pin.length !== 4) return alert_('add-parent-alert', 'Provide a password or a 4-digit PIN.');
+    if (pin && pin.length !== 4) return alert_('add-parent-alert', 'PIN must be exactly 4 digits.');
+    const body = { full_name, email };
+    if (password) body.password = password;
+    if (pin) body.pin = pin;
+    const r = await req('POST', '/api/v1/parent/parents', body);
+    if (!r) return;
+    if (!r.ok) return alert_('add-parent-alert', r.data.error || 'Failed to add parent.');
+    alert_('add-parent-alert', `${r.data.full_name} added to the family!`, 'success');
+    document.getElementById('ap-name').value = '';
+    document.getElementById('ap-email').value = '';
+    document.getElementById('ap-password').value = '';
+    document.getElementById('ap-pin').value = '';
+    await this.loadParents();
+  },
+
+  async removeParent(id, name) {
+    if (!confirm(`Remove ${name} from the family?`)) return;
+    const r = await req('DELETE', `/api/v1/parent/parents/${id}`);
+    if (!r) return;
+    if (!r.ok) return alert(r.data.error || 'Failed to remove parent.');
+    await this.loadParents();
+  },
+
   // ── KID DASHBOARD ───────────────────────────────────────────
   async showKidDash() {
     document.getElementById('kid-nav-name').textContent = state.user.full_name;
@@ -1274,6 +1549,60 @@ const App = {
     document.getElementById('kid-balance').textContent = parseFloat(kid.current_balance).toFixed(2);
     this.renderKidTasks(tasks);
     this.renderKidLedger(ledger_history);
+    this.loadMyProposals();
+  },
+
+  // Propose Task (kid)
+  openProposeTask() {
+    document.getElementById('propose-title').value = '';
+    document.getElementById('propose-desc').value = '';
+    document.getElementById('propose-type').value = 'adhoc';
+    document.getElementById('propose-units').value = 1;
+    document.getElementById('propose-reward').value = '';
+    document.getElementById('propose-due-date').value = '';
+    alert_('propose-task-alert', '');
+    this.openModal('modal-propose-task');
+  },
+
+  async proposeTask() {
+    const title         = document.getElementById('propose-title').value.trim();
+    const description   = document.getElementById('propose-desc').value.trim();
+    const task_type     = document.getElementById('propose-type').value;
+    const target_units  = parseInt(document.getElementById('propose-units').value) || 1;
+    const reward_amount = parseFloat(document.getElementById('propose-reward').value) || 0;
+    const due_date_val  = document.getElementById('propose-due-date').value;
+    if (!title) return alert_('propose-task-alert', 'Title is required.');
+    const body = { title, description, task_type, target_units, reward_amount };
+    if (due_date_val) body.due_date = new Date(due_date_val).toISOString();
+    const r = await req('POST', '/api/v1/kid/tasks/propose', body);
+    if (!r) return;
+    if (!r.ok) return alert_('propose-task-alert', r.data.error || 'Failed to propose task.');
+    alert_('propose-task-alert', 'Sent to your parent for approval!', 'success');
+    this.closeModal('modal-propose-task');
+    await this.loadMyProposals();
+  },
+
+  async loadMyProposals() {
+    const r = await req('GET', '/api/v1/kid/tasks/proposals');
+    if (!r || !r.ok) return;
+    const section = document.getElementById('kid-proposals-section');
+    const el = document.getElementById('kid-proposals-list');
+    if (!r.data.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    const map = { pending: 'gold', approved: 'green', rejected: 'red' };
+    el.innerHTML = r.data.map(t => `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <div class="card-row" style="gap:8px;justify-content:flex-start;margin-bottom:4px">
+              <h3>${t.title}</h3>
+              <span class="badge ${map[t.approval_status] || 'gray'}">${t.approval_status}</span>
+            </div>
+            <div class="meta">${fmt$(t.reward_amount)}/unit × ${t.target_units} = ${fmt$(t.reward_amount * t.target_units)}</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
   },
 
   kidTab(name) {
@@ -1330,8 +1659,8 @@ const App = {
           <div class="type">${l.transaction_type}</div>
           <div class="meta">${fmtDate(l.created_at)}</div>
         </div>
-        <div class="amt ${l.transaction_type === 'EARNED' ? 'earned' : 'payout'}">
-          ${l.transaction_type === 'EARNED' ? '+' : '-'}${fmt$(l.amount)}
+        <div class="amt ${['EARNED','BONUS'].includes(l.transaction_type) ? 'earned' : 'payout'}">
+          ${['EARNED','BONUS'].includes(l.transaction_type) ? '+' : '-'}${fmt$(l.amount)}
         </div>
       </div>
     `).join('');
@@ -1412,6 +1741,13 @@ const App = {
       sel.innerHTML = '<option value="">All Kids</option>' +
         state.kids.map(k => `<option value="${k.id}">${k.full_name}</option>`).join('');
       alert_('add-task-alert', '');
+    }
+    if (id === 'modal-add-parent') {
+      document.getElementById('ap-name').value = '';
+      document.getElementById('ap-email').value = '';
+      document.getElementById('ap-password').value = '';
+      document.getElementById('ap-pin').value = '';
+      alert_('add-parent-alert', '');
     }
     document.getElementById(id).classList.add('open');
   },

@@ -50,18 +50,22 @@ type Profile struct {
 }
 
 type TaskDefinition struct {
-	ID           uuid.UUID  `json:"id"`
-	FamilyID     uuid.UUID  `json:"family_id"`
-	CreatedBy    *uuid.UUID `json:"created_by,omitempty"`
-	Title        string     `json:"title"`
-	Description  *string    `json:"description,omitempty"`
-	TaskType     TaskType   `json:"task_type"`
-	RewardAmount float64    `json:"reward_amount"`
-	TargetUnits  int        `json:"target_units"`
-	IsActive     bool       `json:"is_active"`
-	DueDate      *time.Time `json:"due_date,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	FamilyID       uuid.UUID  `json:"family_id"`
+	CreatedBy      *uuid.UUID `json:"created_by,omitempty"`
+	Title          string     `json:"title"`
+	Description    *string    `json:"description,omitempty"`
+	TaskType       TaskType   `json:"task_type"`
+	RewardAmount   float64    `json:"reward_amount"`
+	TargetUnits    int        `json:"target_units"`
+	IsActive       bool       `json:"is_active"`
+	ApprovalStatus string     `json:"approval_status"`
+	DueDate        *time.Time `json:"due_date,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+
+	// Optional joined field for parent's task-proposal review list
+	ProposedByName string `json:"proposed_by_name,omitempty"`
 }
 
 type TaskLog struct {
@@ -164,6 +168,14 @@ type ReviewTaskRequest struct {
 	Notes    *string `json:"notes,omitempty"`
 }
 
+type ReviewProposalRequest struct {
+	Approved     bool       `json:"approved"`
+	RewardAmount *float64   `json:"reward_amount,omitempty"`
+	TargetUnits  *int       `json:"target_units,omitempty"`
+	DueDate      *time.Time `json:"due_date,omitempty"`
+	Notes        *string    `json:"notes,omitempty"`
+}
+
 type LogProgressRequest struct {
 	Units       int        `json:"units"`
 	Notes       *string    `json:"notes,omitempty"`
@@ -175,6 +187,24 @@ type PayoutRequest struct {
 	KidID  string  `json:"kid_id"`
 	Amount float64 `json:"amount"`
 	Notes  *string `json:"notes,omitempty"`
+}
+
+type BonusRequest struct {
+	KidID  string  `json:"kid_id"`
+	Amount float64 `json:"amount"`
+	Notes  *string `json:"notes,omitempty"`
+}
+
+type UpdateKidRequest struct {
+	FullName *string `json:"full_name,omitempty"`
+	PIN      *string `json:"pin,omitempty"`
+}
+
+type AddParentRequest struct {
+	FullName string `json:"full_name"`
+	Email    string `json:"email"`
+	Password string `json:"password,omitempty"`
+	PIN      string `json:"pin,omitempty"`
 }
 
 type UpdateAvatarRequest struct {
