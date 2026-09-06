@@ -296,7 +296,46 @@
 
 ---
 
-## 14. Planned / Backlog
+## 14. Data Export (for the native app)
+
+One-time snapshot of a family's data for import into the local-first native
+(Flutter) app. The snapshot **includes credential hashes** (`pin_hash`,
+`password_hash`) so logins keep working offline with no password reset — they are
+bcrypt, verifiable by a Dart bcrypt package. It **omits** `reset_token*` and
+`push_subscriptions` (cloud/device-only).
+
+Two ways to produce it, both sharing `internal/exporter`:
+
+| Method | Path / command | Auth | Output |
+|--------|----------------|------|--------|
+| GET | `/api/v1/parent/export` | Parent JWT | One family bundle (the caller's), `Content-Disposition: attachment` |
+| CLI | `DATABASE_URL=… go run ./cmd/export [-email x] [-family id] [-out file]` | DB URL | Single bundle, or `{exported_at, schema_version, families:[…]}` for all |
+
+**Bundle shape** (`schema_version` 1):
+```jsonc
+{
+  "exported_at": "2026-09-06T00:00:00Z",
+  "schema_version": 1,
+  "family":            { "id", "family_name", "created_at" },
+  "profiles":        [ { "id","family_id","full_name","email","role",
+                         "pin_hash","password_hash","current_balance",
+                         "avatar","created_at" } ],
+  "task_definitions":[ { …all columns incl. approval_status, due_date } ],
+  "task_logs":       [ { …all columns incl. progress, proof_image, timestamps } ],
+  "ledger":          [ { "id","family_id","kid_id","task_log_id",
+                         "amount","transaction_type","created_at" } ]
+}
+```
+
+Export files (`earnsmart_export*.json`) are git-ignored — they contain emails and
+credential hashes.
+
+**Postgres → SQLite mapping for the native app**: UUID → TEXT, `timestamptz` →
+ISO-8601 TEXT, `NUMERIC` → REAL, enums → TEXT + CHECK.
+
+---
+
+## 15. Planned / Backlog
 
 - [x] Push notifications — Web Push for parents on the pending-24h alert (see §2.3)
 - [ ] Push notifications for other events (task submitted, overdue, payout)

@@ -149,6 +149,8 @@ func main() {
 			r.Post("/push/subscribe", pushHandler.Subscribe)
 			r.Post("/push/unsubscribe", pushHandler.Unsubscribe)
 
+			r.Get("/export", parentHandler.ExportFamily)
+
 			r.Get("/parents", parentHandler.GetParents)
 			r.Post("/parents", parentHandler.AddParent)
 			r.Delete("/parents/{id}", parentHandler.DeleteParent)

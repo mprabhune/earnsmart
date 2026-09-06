@@ -13,3 +13,6 @@
 .vscode/
 .env
 !.env.example
+
+# Data exports (contain emails + credential hashes — never commit)
+earnsmart_export*.json
