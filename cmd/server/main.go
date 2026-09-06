@@ -2,16 +2,19 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"image"
 	"image/color"
 	"image/png"
 	"log"
 	"net/http"
+	"time"
 
 	"earnsmart/internal/config"
 	"earnsmart/internal/database"
 	"earnsmart/internal/handlers"
 	"earnsmart/internal/middleware"
+	"earnsmart/internal/push"
 	"earnsmart/web"
 
 	"github.com/go-chi/chi/v5"
@@ -62,6 +65,14 @@ func main() {
 		_, _ = w.Write(web.AssetLinksJSON)
 	})
 
+	// Service Worker (Web Push). Served from root so its scope covers the whole app.
+	r.Get("/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write(web.ServiceWorkerJS)
+	})
+
 	// App Icons (generated green PNG for TWA)
 	icon192 := makeIcon(192)
 	icon512 := makeIcon(512)
@@ -81,10 +92,20 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok","service":"earnsmart-backend"}`))
 	})
 
+	// Web Push sender (no-op when VAPID keys are unset)
+	pushSender := push.NewSender(db, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	if pushSender.Enabled() {
+		log.Println("Web Push enabled")
+		startPendingTaskWatcher(db, pushSender)
+	} else {
+		log.Println("Web Push disabled (set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY to enable)")
+	}
+
 	// Handlers
 	authHandler := handlers.NewAuthHandler(db, cfg)
-	parentHandler := handlers.NewParentHandler(db)
+	parentHandler := handlers.NewParentHandler(db, pushSender)
 	kidHandler := handlers.NewKidHandler(db)
+	pushHandler := handlers.NewPushHandler(db, pushSender)
 
 	// Public Auth API Routes
 	r.Route("/api/v1/auth", func(r chi.Router) {
@@ -124,6 +145,10 @@ func main() {
 			r.Post("/bonus", parentHandler.ProcessBonus)
 			r.Get("/notifications", parentHandler.GetNotifications)
 
+			r.Get("/push/vapid-key", pushHandler.VAPIDKey)
+			r.Post("/push/subscribe", pushHandler.Subscribe)
+			r.Post("/push/unsubscribe", pushHandler.Unsubscribe)
+
 			r.Get("/parents", parentHandler.GetParents)
 			r.Post("/parents", parentHandler.AddParent)
 			r.Delete("/parents/{id}", parentHandler.DeleteParent)
@@ -149,6 +174,23 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
+}
+
+// startPendingTaskWatcher runs the pending-24h push check on a timer.
+// On Render's free tier the process sleeps when idle, so this only fires while
+// the server is awake; handlers.GetNotifications re-runs the same check when a
+// parent opens the app, and sent_notifications dedup keeps alerts single-shot.
+func startPendingTaskWatcher(db *sql.DB, sender *push.Sender) {
+	go func() {
+		time.Sleep(30 * time.Second) // let the server settle after boot
+		push.CheckPending(db, sender)
+
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			push.CheckPending(db, sender)
+		}
+	}()
 }
 
 // makeIcon generates a solid green PNG icon of the given size

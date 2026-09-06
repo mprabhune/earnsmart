@@ -10,3 +10,6 @@ var ManifestJSON []byte
 
 //go:embed assetlinks.json
 var AssetLinksJSON []byte
+
+//go:embed sw.js
+var ServiceWorkerJS []byte

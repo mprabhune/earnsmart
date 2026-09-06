@@ -13,6 +13,7 @@ import (
 	"earnsmart/internal/handlers"
 	"earnsmart/internal/middleware"
 	"earnsmart/internal/models"
+	"earnsmart/internal/push"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -37,7 +38,7 @@ func setupTestRouter(t *testing.T) (http.Handler, string) {
 	r := chi.NewRouter()
 
 	authHandler := handlers.NewAuthHandler(db, cfg)
-	parentHandler := handlers.NewParentHandler(db)
+	parentHandler := handlers.NewParentHandler(db, push.NewSender(db, "", "", ""))
 	kidHandler := handlers.NewKidHandler(db)
 
 	r.Route("/api/v1/auth", func(r chi.Router) {
@@ -139,9 +140,10 @@ func TestFullIntegrationWorkflow(t *testing.T) {
 
 	// 4. Kid Login via 4-Digit PIN
 	kidLoginPayload := models.KidLoginRequest{
-		KidID: kidProfile.ID.String(),
-		PIN:   "1234",
+		FullName: "Bobby Smith",
+		PIN:      "1234",
 	}
+	_ = kidProfile
 	bodyBytes, _ = json.Marshal(kidLoginPayload)
 	req = httptest.NewRequest("POST", "/api/v1/auth/kid/login", bytes.NewBuffer(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")

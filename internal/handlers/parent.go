@@ -9,6 +9,7 @@ import (
 
 	"earnsmart/internal/middleware"
 	"earnsmart/internal/models"
+	"earnsmart/internal/push"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -16,11 +17,12 @@ import (
 )
 
 type ParentHandler struct {
-	DB *sql.DB
+	DB   *sql.DB
+	Push *push.Sender
 }
 
-func NewParentHandler(db *sql.DB) *ParentHandler {
-	return &ParentHandler{DB: db}
+func NewParentHandler(db *sql.DB, sender *push.Sender) *ParentHandler {
+	return &ParentHandler{DB: db, Push: sender}
 }
 
 // GET /api/v1/parent/tasks
@@ -574,6 +576,13 @@ func (h *ParentHandler) GetKidTasks(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/parent/notifications — tasks pending > 24 hours
 func (h *ParentHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	claims, _ := middleware.GetClaims(r.Context())
+
+	// Opportunistic catch-up: Render's free tier sleeps the server when idle, so
+	// the background ticker pauses too. A parent opening the app re-runs the
+	// pending-24h check; sent_notifications dedup keeps it from double-firing.
+	if h.Push.Enabled() {
+		go push.CheckPending(h.DB, h.Push)
+	}
 
 	rows, err := h.DB.Query(
 		`SELECT tl.id, td.title, p.full_name, tl.created_at, td.due_date

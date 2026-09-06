@@ -862,6 +862,16 @@ function alert_(id, msg, type='error') {
   el.innerHTML = msg ? `<div class="alert ${type}">${msg}</div>` : '';
 }
 
+// Convert a base64url VAPID key to the Uint8Array the Push API expects.
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 function fmt$(n) { return '$' + parseFloat(n || 0).toFixed(2); }
 function fmtDate(s) {
   if (!s) return '';
@@ -1012,6 +1022,7 @@ const App = {
     await this.loadKids();
     await this.loadTasks();
     this.loadNotifications();
+    this.initPush();
   },
 
   parentTab(name) {
@@ -1164,6 +1175,37 @@ const App = {
     if (pending.length) msg += `⏰ ${pending.length} task${pending.length > 1 ? 's' : ''} pending for 24+ hours: ${pending.map(n => `${n.kid_name} — ${n.task_title}`).join(', ')}.`;
     banner.textContent = msg;
     banner.style.display = '';
+  },
+
+  // ── PUSH NOTIFICATIONS ───────────────────────────────────────
+  // Registers the service worker and subscribes this device so the parent gets
+  // an OS notification (e.g. "task pending 24h+") even when the app is closed.
+  async initPush() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+      const vk = await req('GET', '/api/v1/parent/push/vapid-key');
+      if (!vk || !vk.ok || !vk.data.enabled || !vk.data.key) return;
+
+      const reg = await navigator.serviceWorker.register('/sw.js');
+
+      if (Notification.permission === 'denied') return;
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vk.data.key),
+        });
+      }
+      await req('POST', '/api/v1/parent/push/subscribe', sub.toJSON());
+    } catch (e) {
+      console.warn('push init failed', e);
+    }
   },
 
   // Kids

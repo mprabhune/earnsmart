@@ -13,3 +13,11 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      # Web Push (VAPID). Generate a keypair with `go run ./cmd/genvapid`.
+      # Leave unset to disable push notifications gracefully.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:support@earnsmart.app

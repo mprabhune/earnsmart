@@ -119,3 +119,24 @@ ALTER TABLE ledger ADD CONSTRAINT ledger_transaction_type_check
 ALTER TABLE task_definitions DROP CONSTRAINT IF EXISTS task_definitions_created_by_fkey;
 ALTER TABLE task_definitions ADD CONSTRAINT task_definitions_created_by_fkey
     FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+
+-- Web Push subscriptions — one row per parent device/browser
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (profile_id, endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_profile ON push_subscriptions(profile_id);
+
+-- Sent-notification ledger — dedup so each task alert fires at most once per kind
+CREATE TABLE IF NOT EXISTS sent_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_log_id UUID NOT NULL REFERENCES task_logs(id) ON DELETE CASCADE,
+    kind VARCHAR(40) NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (task_log_id, kind)
+);

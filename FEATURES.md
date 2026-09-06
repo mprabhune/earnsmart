@@ -53,6 +53,29 @@
 - Format: `⚠️ N overdue: [kid] — [task]. ⏰ N pending 24h+: [kid] — [task].`
 - Banner hidden if no alerts
 
+### 2.3 Push Notifications (Web Push)
+- **Purpose**: alert the parent on their Android device even when the app is closed.
+  The kid uses the web URL and is not subscribed.
+- **Subscription**: on parent login the app registers `/sw.js`, requests
+  notification permission, and POSTs the browser push subscription to the server
+  (one row per device in `push_subscriptions`, keyed on `profile_id + endpoint`).
+- **Pending-24h alert**: a task that has been `pending` or `in_progress` for more
+  than 24 hours triggers one push to every parent in the family:
+  `"[kid] — "[task]" has been pending for over 24 hours."`
+  - Fired at most once per task (`sent_notifications` table, `kind = 'pending_24h'`,
+    unique on `task_log_id + kind`).
+  - **Trigger**: a background ticker in the Go server runs the check every 15 min,
+    and `GET /api/v1/parent/notifications` re-runs it whenever a parent opens the
+    app (catch-up, since Render's free tier sleeps the server when idle).
+- **Delivery**: tapping the notification focuses the app (or opens `/`). Dead
+  subscriptions (HTTP 404/410 from the push service) are pruned automatically.
+- **Configuration**: needs a VAPID keypair in `VAPID_PUBLIC_KEY` /
+  `VAPID_PRIVATE_KEY` (generate with `go run ./cmd/genvapid`), plus
+  `VAPID_SUBJECT` (a `mailto:` contact). With no keys set, push is disabled
+  gracefully and the banner still works.
+- **TWA note**: the Android wrapper must be built with notification delegation
+  enabled (Bubblewrap `--notificationDelegation` / `POST_NOTIFICATIONS`).
+
 ---
 
 ## 3. Kids Management
@@ -232,7 +255,10 @@
 | POST | `/api/v1/parent/approvals/{id}/review` | Parent JWT | Approve or reject |
 | GET | `/api/v1/parent/summary` | Parent JWT | Per-kid earnings summary |
 | POST | `/api/v1/parent/payout` | Parent JWT | Record a payout |
-| GET | `/api/v1/parent/notifications` | Parent JWT | Tasks pending 24h+ / overdue |
+| GET | `/api/v1/parent/notifications` | Parent JWT | Tasks pending 24h+ / overdue (also re-runs the push check) |
+| GET | `/api/v1/parent/push/vapid-key` | Parent JWT | VAPID public key + whether push is enabled |
+| POST | `/api/v1/parent/push/subscribe` | Parent JWT | Store this device's Web Push subscription |
+| POST | `/api/v1/parent/push/unsubscribe` | Parent JWT | Remove this device's Web Push subscription |
 | GET | `/api/v1/kid/dashboard` | Kid JWT | Kid's task list + balance |
 | POST | `/api/v1/kid/tasks/{id}/log` | Kid JWT | Log progress on a task |
 | POST | `/api/v1/kid/tasks/{id}/submit` | Kid JWT | Submit task for approval |
@@ -272,7 +298,8 @@
 
 ## 14. Planned / Backlog
 
-- [ ] Push notifications (currently banner-only, no push)
+- [x] Push notifications — Web Push for parents on the pending-24h alert (see §2.3)
+- [ ] Push notifications for other events (task submitted, overdue, payout)
 - [ ] Multi-family / SaaS mode with proper row-level security
 - [ ] Local-first version (SQLite, no cloud dependency)
 - [ ] Native Android app (Kotlin or Flutter)

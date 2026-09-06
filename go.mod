@@ -10,3 +10,5 @@ require (
 	github.com/lib/pq v1.12.3
 	golang.org/x/crypto v0.31.0
 )
+
+require github.com/SherClockHolmes/webpush-go v1.4.0
